@@ -8,4 +8,4 @@ fi
 ip_parts=(${partial_ip//./ })
 partial_ip="${ip_parts[0]}.${ip_parts[1]}.${ip_parts[2]}"
 echo "Setting partial IP to: $partial_ip"
-echo $partial_ip > $SCRIPTDIR/partial_ip.txt
+echo $partial_ip > $SCRIPTDIR/../../config/partial_ip.txt
