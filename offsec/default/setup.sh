@@ -21,3 +21,4 @@ source $COMMONDIR/linux_escalate.sh
 source $COMMONDIR/exploits.sh
 source $COMMONDIR/pivot.sh
 source $COMMONDIR/ad_tools.sh
+source $COMMONDIR/offsec.sh

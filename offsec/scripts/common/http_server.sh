@@ -43,16 +43,16 @@ start_webdav_server() {
     echo "permissions: RC" >> config.yml
     echo "debug: true" >> config.yml
     echo "Starting WebDAV server on port $http_port"
-    sudo docker run -d -p $http_port:$http_port -v "$(pwd)/config.yml:/config.yml:ro" -v "$(pwd):/data" hacdias/webdav:latest -c /config.yml
+    docker run -d -p $http_port:$http_port -v "$(pwd)/config.yml:/config.yml:ro" -v "$(pwd):/data" hacdias/webdav:latest -c /config.yml
 
 }
 
 stop_webdav_server(){
 
-    container_id=$(sudo docker ps -f ancestor=hacdias/webdav --format "{{.ID}}")
+    container_id=$(docker ps -f ancestor=hacdias/webdav --format "{{.ID}}")
     if [ ! -z "$container_id" ]; then
         echo "Stopping WebDAV server with container ID: $container_id"  
-        sudo docker stop $container_id
+        docker stop $container_id
     fi
 
 }

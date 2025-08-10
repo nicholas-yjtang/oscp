@@ -1,16 +1,20 @@
 #!/bin/bash
 run_wpscan() {
     local url="$1"
-    local name="$2"
-    if [[ -z "$wpscan_log" ]]; then
-        wpscan_log="wpscan.log"
+    if [[ -z "$url" ]]; then
+        echo "Usage: run_wpscan <url>"
+        return 1
+    fi
+    local wpscan_log="${url}_wpscan.log"
+    if [[ ! -z "$log_dir" ]]; then
+        wpscan_log="$log_dir/$wpscan_log"
     fi
     if [[ -f "$wpscan_log" ]]; then
         echo "WPScan output already exists, skipping scan."
         return
     fi
     echo "Running WPScan..."
-    wpscan --url http://$url --enumerate ap | tee -a $wpscan_log    
+    wpscan --url http://$url --enumerate p --plugins-detection aggressive | tee >(remove_color_to_log >> $wpscan_log)
 }
 
 upload_plugin() {

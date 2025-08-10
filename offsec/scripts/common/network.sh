@@ -2,7 +2,8 @@
 SCRIPTDIR=$(dirname "${BASH_SOURCE[0]}")
 
 get_current_ip() {
-    local current_ip=$(ip a | grep tun0 -A3 | grep "inet "| awk '{print $2}' | cut -d '/' -f 1)
+    local current_ip=""
+    current_ip=$(ip a | grep tun0 -A3 | grep "inet "| awk '{print $2}' | cut -d '/' -f 1)
     echo "$current_ip"
 }
 
@@ -12,7 +13,8 @@ get_host_ip() {
 
 port_in_use() {
     local port="$1"
-    local result=$(netstat -tuln | grep ":${port} ") #listening ports
+    local result=""
+    result=$(netstat -tuln | grep ":${port} ") #listening ports
     if [[ -n "$result" ]]; then
         echo "true"
     else
@@ -25,17 +27,20 @@ port_in_use() {
     fi
 }
 
+
 get_partial_ip () {
     echo $(cat $SCRIPTDIR/../../config/partial_ip.txt 2>/dev/null)
 }
 
 get_third_octet() {
-    local partial_ip=$(get_partial_ip)
+    local partial_ip=""
+    partial_ip=$(get_partial_ip)
     if [[ -z "$partial_ip" ]]; then
         echo "Partial IP not set. Please set it using change_partial_ip.sh."
         exit 1
     fi
-    local third_octet=$(echo $partial_ip | cut -d '.' -f 3)
+    local third_octet=""
+    third_octet=$(echo "$partial_ip" | cut -d '.' -f 3)
     echo "$third_octet"
 }
 
@@ -60,10 +65,11 @@ run_tcpdump() {
 
 stop_tcpdump() {
     echo "Stopping tcpdump..."
-    local tcpdump_pid=$(pgrep -f "tcpdump -i tun0")
-    if [ -n "$tcpdump_pid" ]; then
+    local tcpdump_pid=""
+    tcpdump_pid=$(pgrep -f "tcpdump -i tun0")
+    if pgrep -f "tcpdump -i tun0"; then
         for pid in $tcpdump_pid; do
-            sudo kill -9 $pid
+            sudo kill -9 "$pid"
         done
         echo "tcpdump stopped."
     else

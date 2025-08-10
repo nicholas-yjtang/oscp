@@ -12,18 +12,17 @@ run_gobuster() {
         echo "Port is not set, using default port 80."
         port=80
     fi
-    if [[ -z "$gobuster_log" ]]; then
-        gobuster_log="gobuster_$target""_$port.log"
-    fi
+    local gobuster_log="gobuster_$target""_$port"$options'.log'
+    gobuster_log=$(echo "$gobuster_log" | sed -E 's/\ /_/g')
+    echo "Using Gobuster log file: $gobuster_log"
     if [[ -d "$log_dir" ]]; then
         gobuster_log="$log_dir/$gobuster_log"
-
     fi        
     if [[ -f "$gobuster_log" ]]; then
         echo "$gobuster_log already exists, skipping Gobuster scan."
         return
     fi
-    gobuster dir -u http://$target:$port -w /usr/share/wordlists/dirb/common.txt $options --no-color --no-progress --quiet -o $gobuster_log
+    gobuster dir -u http://$target:$port -w /usr/share/wordlists/dirb/common.txt $options --no-color --no-progress --quiet -o "$gobuster_log"
 
 }
 

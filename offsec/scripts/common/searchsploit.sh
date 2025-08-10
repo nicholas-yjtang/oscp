@@ -2,7 +2,7 @@
 run_searchsploit() {
     echo "Running Searchsploit..."
     local id="$1"
-    local exploit_filename=$(searchsploit --disable-colour "$id" | grep -oP "\K$id[^ ]+")
+    local exploit_filename=$(searchsploit --disable-colour "$id" | grep -oP '\K'$id'[^ ]+')
     if [[ -f "$exploit_filename" ]]; then
         echo "$exploit_filename already exists, skipping SearchSploit"       
         return 

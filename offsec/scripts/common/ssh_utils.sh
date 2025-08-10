@@ -1,6 +1,6 @@
 #!/bin/bash
 run_scp() {
-    if [[ -z "$username " || -z "$password" || -z "$ip" ]]; then
+    if [[ -z "$username" || -z "$password" || -z "$ip" ]]; then
         echo "username, password, or ip address is not set."
         return 
     fi
@@ -12,7 +12,7 @@ run_scp() {
 }
 
 run_ssh() {
-    if [[ -z "$username " || -z "$password" ]]; then
+    if [[ -z "$username" || -z "$password" ]]; then
         echo "username, password, or ip address is not set."
         return 
     fi
@@ -40,7 +40,7 @@ run_ssh() {
 
 run_ssh_identity() {
     
-    if [[ -z "$username " || -z "$identity" ]]; then
+    if [[ -z "$username" || -z "$identity" ]]; then
         echo "username,or identity is not set."
         return 
     fi

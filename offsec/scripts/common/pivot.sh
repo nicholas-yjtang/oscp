@@ -24,13 +24,20 @@ get_chisel() {
 compile_chisel() {
     local go_version=$1
     if [[ -z "$go_version" ]]; then
-        go_version="1.19"
+        go_version="1.19" 
     fi
     local chisel_version=$2
     if [[ -z "$chisel_version" ]]; then
         chisel_version="1.10.1"
     fi
-    if [[ -f "chisel" ]]; then
+    local chisel_file="chisel"
+    local main_file="main"
+    if [[ ! -z "$chisel_windows" ]] && [[ "$chisel_windows" == "true" ]] ; then
+        env_options="-e GOOS=windows -e GOARCH=amd64"
+        main_file="main.exe"
+        chisel_file="chisel.exe"
+    fi
+    if [[ -f "$chisel_file" ]]; then
         echo "Chisel binary already exists, skipping compilation."
         return 1
     fi
@@ -38,10 +45,10 @@ compile_chisel() {
     if [[ ! -f "chisel.tar.gz" ]]; then
         wget -q $chisel_src -O chisel.tar.gz
         tar xvf chisel.tar.gz
-    fi    
-    sed -i 's/0\.0\.0-src/'$chisel_version'/g' chisel-$chisel_version/share/version.go
-    docker run -it --rm -v $(pwd)/chisel-$chisel_version:/opt/chisel -w /opt/chisel golang:$go_version go build main.go
-    cp chisel-$chisel_version/main chisel
+        sed -i 's/0\.0\.0-src/'$chisel_version'/g' chisel-$chisel_version/share/version.go
+    fi
+    docker run -it --rm -v $(pwd)/chisel-$chisel_version:/opt/chisel -w /opt/chisel $env_options golang:$go_version go build main.go
+    cp chisel-$chisel_version/$main_file $chisel_file
 }
 
 start_chisel_server() {
@@ -51,7 +58,7 @@ start_chisel_server() {
     fi
     chisel_server_port=$1
     if [ -z "$chisel_server_port" ]; then
-        chisel_server_port=8080
+        chisel_server_port=8180
     fi
     if [ -z "$chisel_server_ip" ]; then
         chisel_server_ip=$(get_host_ip)
@@ -79,9 +86,17 @@ stop_chisel_server() {
 
 get_chisel_client_commands() {
 
-    chisel_client_options=$1
+    local chisel_client_options=$1
     if [ ! -z "$chisel_client_options" ]; then
         chisel_client_options+=" "
+    fi
+    local chisel_file="chisel"
+    if [[ -z $chisel_windows_folder_path ]]; then
+        chisel_windows_folder_path='.\'
+    fi
+    if [[ ! -z "$chisel_windows" ]] && [[ "$chisel_windows" == "true" ]] ; then
+        chisel_file=$chisel_windows_folder_path'chisel.exe'
+        generate_iwr "chisel.exe" "$chisel_file"
     fi
     if [[ $(ps -ef | grep -v grep | grep "chisel server") == *reverse* ]]; then
         chisel_client_options+="R:"
@@ -108,8 +123,19 @@ get_chisel_client_commands() {
     if [ -z "$chisel_client_protocol" ]; then
         chisel_client_protocol="tcp"
     fi
-    chisel_client_options+="/$chisel_client_protocol"
-    echo "chisel client $chisel_server_ip:$chisel_server_port $chisel_client_options"
+    if [[ "$chisel_client_options" != *socks* ]]; then    
+        chisel_client_options+="/$chisel_client_protocol"
+    fi
+    if [[ ! -z "$chisel_background" ]] && [[ "$chisel_background" == "true" ]] ; then
+        if [[ ! -z "$chisel_powershell" ]] && [[ "$chisel_powershell" == "true" ]] ; then
+            echo 'Start-Process -FilePath "'$chisel_file'" -ArgumentList "client", "'$chisel_server_ip':'$chisel_server_port'", "'$chisel_client_options'" -NoNewWindow'            
+            return 0
+        else
+            chisel_client_options+=" &"
+        fi
+    fi
+
+    echo "$chisel_file client $chisel_server_ip:$chisel_server_port $chisel_client_options"
 }
 
 wait_for_chisel_client_connect() {
@@ -144,4 +170,35 @@ is_chisel_client_connected() {
         echo "Chisel client is not connected on port $chisel_local_port."
         return 1
     fi
-}  
+}
+
+configure_proxychains() {
+    if [[ ! -z "$1" ]]; then
+        proxy_target=$1
+    fi
+    if [[ -z "$proxy_target" ]]; then
+        echo "Proxy target must be set."
+        return 1
+    fi
+    if [[ ! -z "$2" ]]; then
+        proxy_port=$2
+    fi
+    if [[ -z "$proxy_port" ]]; then
+        echo "Proxy port must be set."
+        return 1
+    fi
+
+    configured=$(cat /etc/proxychains4.conf | grep socks5 | grep "$proxy_target" | grep "$proxy_port") 
+    if [[ -z "$configured" ]]; then
+        sudo sed -i -E '/^socks.*/d' /etc/proxychains4.conf
+        sudo sed -i -E '/^http.*/d' /etc/proxychains4.conf
+        echo "Configuring proxychains for $proxy_target:$proxy_port"
+        echo "socks5 $proxy_target $proxy_port" | sudo tee -a /etc/proxychains4.conf > /dev/null
+    else
+        echo "Proxychains already configured for $proxy_target:$proxy_port"
+    fi
+}
+
+configure_proxychains_chisel() {
+    configure_proxychains "$chisel_local_interface" "$chisel_local_port"
+}

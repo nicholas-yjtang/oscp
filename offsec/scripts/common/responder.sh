@@ -1,23 +1,24 @@
 #!/bin/bash
-
+SCRIPTDIR=$(dirname "${BASH_SOURCE[0]}")
 start_responder() {
     local responder_log="log/responder.log"
     if [ ! -z "$log_dir" ]; then
         responder_log="$log_dir/responder.log"
     fi
+    if [[ -z "$responder_ip" ]]; then
+        responder_ip=$(get_host_ip)
+    fi
     if pgrep -f "responder -I tun0"; then
         echo "Responder is already running."
         return 1
     fi
-    script -c "sudo responder -I tun0" $responder_log &
-    #| tee -a $responder_log 2>&1 & 
-    #tee >(sed $'s/\033[[][^A-Za-z]*[A-Za-z]//g' >> $trail_log 2>&1 &
+    sudo python3 -u /usr/share/responder/Responder.py -I tun0 | tee >(remove_color_to_log >> $responder_log) 
 }
 
 stop_responder() {
     if pgrep -f "responder -I tun0"; then
         echo "Stopping Responder..."
-        pkill -f "responder -I tun0"
+        sudo pkill -f "responder -I tun0"
     else
         echo "No Responder is running."
     fi
@@ -45,3 +46,14 @@ get_ntlm_password(){
     fi
     echo "$password"
 }
+
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then    
+    project=$(pwd)
+    source $SCRIPTDIR/general.sh
+    source $SCRIPTDIR/network.sh
+    if [[ "$1" == "stop" ]]; then
+        stop_responder
+        exit 0
+    fi
+    start_responder
+fi
