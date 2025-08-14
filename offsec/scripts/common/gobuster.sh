@@ -1,4 +1,7 @@
 #!/bin/bash
+SCRIPTDIR=$(dirname "${BASH_SOURCE[0]}")
+source $SCRIPTDIR/general.sh
+
 run_gobuster() {
     echo "Running Gobuster..."
     local port=$1

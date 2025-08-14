@@ -29,6 +29,14 @@ run_ssh() {
     if [[ -z "$ssh_options" ]]; then
         echo "No additional ssh options set"
     fi
+    # instead of using proxy chains, we will use ProxyCommand
+    if [[ ! -z "$use_proxychain" ]] && [[ "$use_proxychain" == "true" ]]; then
+        if [[ -z "$chisel_local_interface" ]] || [[ -z "$chisel_local_port" ]] || [[ -z "$chisel_remote_interface" ]] || [[ -z "$chisel_remote_port" ]]; then
+            echo "Chisel local and remote interfaces and ports must be set for proxy to work"
+            return 1
+        fi
+        ssh_options="-o ProxyCommand=\"ncat --proxy-type socks5 $chisel_local_interface:$chisel_local_port  %h %p\" $ssh_options"
+    fi        
     local command="$1"
     if [[ -z "$command" ]]; then
         echo "Running SSH command on $ssh_target as $username with port $ssh_port" 
@@ -54,6 +62,14 @@ run_ssh_identity() {
     if [[ -z "$trail_log" ]]; then
         trail_log="trail.log"
     fi    
+    # instead of using proxy chains, we will use ProxyCommand
+    if [[ ! -z "$use_proxychain" ]] && [[ "$use_proxychain" == "true" ]]; then
+        if [[ -z "$chisel_local_interface" ]] || [[ -z "$chisel_local_port" ]] || [[ -z "$chisel_remote_interface" ]] || [[ -z "$chisel_remote_port" ]]; then
+            echo "Chisel local and remote interfaces and ports must be set for proxy to work"
+            return 1
+        fi
+        ssh_options="-o ProxyCommand=\"ncat --proxy-type socks5 $chisel_local_interface:$chisel_local_port  %h %p\" $ssh_options"
+    fi
     local command="$1"
     if [[ -z "$command" ]]; then
         ssh -i $identity  -v -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no $username@$ssh_target -p $ssh_port | tee >(remove_color_to_log >> $trail_log)

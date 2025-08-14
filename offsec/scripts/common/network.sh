@@ -8,7 +8,8 @@ get_current_ip() {
 }
 
 get_host_ip() {
-    get_current_ip
+    host_ip=$(get_current_ip)
+    echo "$host_ip"
 }
 
 port_in_use() {
@@ -17,29 +18,39 @@ port_in_use() {
     result=$(netstat -tuln | grep ":${port} ") #listening ports
     if [[ -n "$result" ]]; then
         echo "true"
+        return 0
     else
         result=$(netstat -tuno | grep ":${port} ") #ports that have 
         if [[ -n "$result" ]]; then
             echo "true"
+            return 0
         else
             echo "false"
-        fi
+            return 1
+        fi        
     fi
 }
 
 
 get_partial_ip () {
-    echo $(cat $SCRIPTDIR/../../config/partial_ip.txt 2>/dev/null)
+    if [[ -z "$partial_ip" ]]; then
+        partial_ip=$(cat $SCRIPTDIR/../../config/partial_ip.txt 2>/dev/null)
+    fi
+    echo "$partial_ip"
 }
 
 get_third_octet() {
-    local partial_ip=""
-    partial_ip=$(get_partial_ip)
+    if [[ ! -z "$third_octet" ]]; then
+        echo "$third_octet"
+        return 0
+    fi
     if [[ -z "$partial_ip" ]]; then
-        echo "Partial IP not set. Please set it using change_partial_ip.sh."
+        partial_ip=$(get_partial_ip)
+    fi
+    if [[ -z "$partial_ip" ]]; then
+        echo "Partial IP is not set. Please set it using change_partial_ip.sh."
         exit 1
     fi
-    local third_octet=""
     third_octet=$(echo "$partial_ip" | cut -d '.' -f 3)
     echo "$third_octet"
 }

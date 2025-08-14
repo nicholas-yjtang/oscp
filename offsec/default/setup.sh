@@ -3,7 +3,8 @@ SCRIPTDIR=$(dirname "${BASH_SOURCE[0]}")
 COMMONDIR=$(realpath "$SCRIPTDIR/scripts/common")
 CURRENTDIR=$(pwd)
 project=$CURRENTDIR
-source $COMMONDIR/general.sh 
+source $COMMONDIR/general.sh
+source $COMMONDIR/project.sh
 source $COMMONDIR/setup_ip.sh $1
 source $COMMONDIR/traverse.sh
 source $COMMONDIR/add_host.sh
@@ -21,4 +22,7 @@ source $COMMONDIR/linux_escalate.sh
 source $COMMONDIR/exploits.sh
 source $COMMONDIR/pivot.sh
 source $COMMONDIR/ad_tools.sh
+source $COMMONDIR/ad_enumeration.sh
 source $COMMONDIR/offsec.sh
+source $COMMONDIR/password_cracking.sh
+source $COMMONDIR/wpscan.sh

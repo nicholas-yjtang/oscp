@@ -31,7 +31,7 @@ setup_assembling_pieces() {
         echo "Please provide the third octet for the internal network"
         exit 1
     fi
-    internal_subnet=172.16.$1
+    local internal_subnet="172.16.$1"
     partial_ip=$(get_partial_ip)
     winprep_ip=$partial_ip.250
     websrv1_ip=$partial_ip.244
@@ -45,4 +45,27 @@ setup_assembling_pieces() {
     add_host "mailsrv1" "$mailsrv1_ip"
     add_host "internalsrv1.beyond.com" "$internal_internalsrv1_ip"
     add_host "dcsrv1.beyond.com" "$internal_dcsrv1_ip"
+    add_host "clientwk1.beyond.com" "$internal_clientwk1_ip"
+    add_host "mailsrv1.beyond.com" "$internal_mailsrv1_ip"
+}
+
+setup_alvida() {
+    partial_ip=$(get_partial_ip)
+    alvida_ip=$partial_ip.47
+    add_host alvida-eatery.org "$alvida_ip"
+
+}
+
+setup_secura() {
+    partial_ip=$(get_partial_ip)
+    secure_ip=$partial_ip.95
+    era_ip=$partial_ip.96
+    dc01_ip=$partial_ip.97
+    add_host "secure" $secure_ip
+    add_host "era" $era_ip
+    add_host "dc01" $dc01_ip
+    add_host "secure.secura.yzx" $secure_ip
+    add_host "era.secura.yzx" $era_ip
+    add_host "dc01.secura.yzx" $dc01_ip
+    add_host "secura.yzx" $dc01_ip
 }

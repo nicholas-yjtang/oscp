@@ -217,3 +217,12 @@ is_listener_running() {
         return 1
     fi
 }
+
+find_ready_listener_port() {
+    local start_port=4444
+    while is_listener_running $start_port > /dev/null; do
+        #echo "Port $start_port is already in use. Trying next port..."
+        start_port=$((start_port + 1))
+    done
+    echo "$start_port"
+}
