@@ -8,7 +8,7 @@ get_powerview() {
         return 0
     fi
     cp /usr/share/windows-resources/powersploit/Recon/PowerView.ps1 PowerView.ps1
-    generate_iwr PowerView.ps1
+    generate_windows_download PowerView.ps1
     echo '. .\PowerView.ps1;'
 }
 
@@ -22,7 +22,7 @@ get_ldap_search() {
     if [[ ! -f "ldap_search.ps1" ]]; then
         cp "$SCRIPTDIR/../ps1/ldap_search.ps1" ldap_search.ps1   
     fi
-    generate_iwr ldap_search.ps1
+    generate_windows_download ldap_search.ps1
     echo '. .\ldap_search.ps1;'
 }
 
@@ -39,7 +39,7 @@ get_psloggedon() {
     if [[ ! -f "PsLoggedon.exe" ]]; then
         cp /tmp/PsLoggedon.exe .        
     fi
-    generate_iwr PsLoggedon.exe
+    generate_windows_download PsLoggedon.exe
     echo '.\PsLoggedon.exe;'
 }
 
@@ -57,7 +57,7 @@ get_sharphound() {
     if [[ ! -f "SharpHound.ps1" ]]; then
         cp /tmp/SharpHound.ps1 .
     else
-        echo "SharpHound executable not found after extraction." >> "$trail_log"
+        echo "SharpHound.ps1 already exists." >> "$trail_log"
     fi
     if [[ -z "$http_ip" ]] || [[ -z "$http_port" ]]; then
         echo "HTTP IP address or HTTP port must be set before running SharpHound."

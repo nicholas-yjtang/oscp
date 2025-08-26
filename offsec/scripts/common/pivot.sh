@@ -62,7 +62,7 @@ start_chisel_server() {
         chisel_server_ip=$1
     fi
     if [ -z "$chisel_server_port" ]; then
-        chisel_server_port=8180
+        chisel_server_port=443
     fi
     if [ -z "$chisel_server_ip" ]; then
         chisel_server_ip=$(get_host_ip)
@@ -100,7 +100,7 @@ get_chisel_client_commands() {
     fi
     if [[ ! -z "$chisel_windows" ]] && [[ "$chisel_windows" == "true" ]] ; then
         chisel_file=$chisel_windows_folder_path'chisel.exe'
-        generate_iwr "chisel.exe" "$chisel_file"
+        generate_windows_download "chisel.exe" "$chisel_file"
     fi
     if [[ -z "$chisel_server_ip" ]]; then
         if pgrep -f "chisel server"; then
@@ -145,9 +145,15 @@ get_chisel_client_commands() {
     if [[ "$chisel_client_options" != *socks* ]]; then    
         chisel_client_options+="/$chisel_client_protocol"
     fi
+    if [[ -z $chisel_background ]]; then
+        chisel_background=true
+    fi
+    if [[ -z $chisel_powershell ]]; then
+        chisel_powershell=true
+    fi
     if [[ ! -z "$chisel_background" ]] && [[ "$chisel_background" == "true" ]] ; then
         if [[ ! -z "$chisel_powershell" ]] && [[ "$chisel_powershell" == "true" ]] ; then
-            echo 'Start-Process -FilePath "'$chisel_file'" -ArgumentList "client", "'$chisel_server_ip':'$chisel_server_port'", "'$chisel_client_options'" -NoNewWindow'            
+            echo 'Start-Process -FilePath "'$chisel_file'" -ArgumentList "client", "'$chisel_server_ip':'$chisel_server_port'", "'$chisel_client_options'" -NoNewWindow'
             return 0
         else
             chisel_client_options+=" &"
@@ -220,6 +226,7 @@ configure_proxychains() {
 
 configure_proxychains_chisel() {
     configure_proxychains "$chisel_local_interface" "$chisel_local_port"
+    use_proxychain=true
 }
 
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then

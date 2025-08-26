@@ -2,8 +2,16 @@
 add_host() {
     local host=$1
     local ip=$2
+    if [[ -z $host ]]; then
+        echo "Host name is required."
+        exit 1
+    fi
+    if [[ -z $ip ]]; then
+        echo "IP address is required."
+        exit 1
+    fi
     host=${host,,} # Convert to lowercase
-    local hostname_found=$(cat /etc/hosts |  grep $host | awk '{print $1}')
+    local hostname_found=$(cat /etc/hosts |  grep -E " $host( |$)" | awk '{print $1}')
     local ip_found=$(cat /etc/hosts | grep $ip | awk '{print $1}')
     if [[ -z "$hostname_found" ]] && [[ -z "$ip_found" ]]; then
         echo "$ip $host" | sudo tee -a /etc/hosts

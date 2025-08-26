@@ -7,6 +7,7 @@ if [[ ! -z "$interactive" ]]; then
     echo "Starting listener in interactive mode..."
     interactive_shell=true
 fi
+source $SCRIPTDIR/project.sh
 source $SCRIPTDIR/network.sh
 source $SCRIPTDIR/reverse_shell.sh
 source $SCRIPTDIR/general.sh

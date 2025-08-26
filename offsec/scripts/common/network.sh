@@ -1,5 +1,6 @@
 #!/bin/bash
 SCRIPTDIR=$(dirname "${BASH_SOURCE[0]}")
+source $SCRIPTDIR/urldecode.sh
 
 get_current_ip() {
     local current_ip=""

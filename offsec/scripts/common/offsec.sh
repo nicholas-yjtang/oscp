@@ -55,17 +55,3 @@ setup_alvida() {
     add_host alvida-eatery.org "$alvida_ip"
 
 }
-
-setup_secura() {
-    partial_ip=$(get_partial_ip)
-    secure_ip=$partial_ip.95
-    era_ip=$partial_ip.96
-    dc01_ip=$partial_ip.97
-    add_host "secure" $secure_ip
-    add_host "era" $era_ip
-    add_host "dc01" $dc01_ip
-    add_host "secure.secura.yzx" $secure_ip
-    add_host "era.secura.yzx" $era_ip
-    add_host "dc01.secura.yzx" $dc01_ip
-    add_host "secura.yzx" $dc01_ip
-}

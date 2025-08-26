@@ -114,7 +114,7 @@ hashcat_phpass() {
 }
 
 hashcat_ssh_password() {
-    if [[ -z "$identity_file" ]]; then
+    if [[ -z "$identity" ]]; then
         echo "Identity file must be set before running hashcat for SSH password."
         return 1
     fi
@@ -124,7 +124,7 @@ hashcat_ssh_password() {
         echo "Using provided hash file: $hash_file"
     fi
     if [[ ! -f "$hash_file" ]]; then
-        ssh2john "$identity_file" > "$hash_file"
+        ssh2john "$identity" > "$hash_file"
     else
         echo "$hash_file already exists, skipping ssh2john."
     fi
@@ -167,7 +167,7 @@ john_generic() {
 }
 
 john_ssh_password() {
-     if [[ -z "$identity_file" ]]; then
+     if [[ -z "$identity" ]]; then
         echo "Identity file must be set before running hashcat for SSH password."
         return 1
     fi
@@ -178,7 +178,7 @@ john_ssh_password() {
     fi
     if [[ ! -f "$hash_file" ]]; then
         echo "Running ssh2john to generate hash file."
-        ssh2john "$identity_file" > "$hash_file"
+        ssh2john "$identity" > "$hash_file"
     else
         echo "$hash_file already exists, skipping ssh2john."
     fi
@@ -219,6 +219,18 @@ stop_ntlmrelay() {
     fi
 }
 
+# linux shadow file contents
+hashcat_sha512() {
+
+    if [[ -z "$hash_file" ]]; then
+        hash_file="hashes.sha512"
+    else
+        echo "Using provided hash file: $hash_file"
+    fi
+    hash_mode=1800  # SHA-512 hash mode
+    hashcat_generic
+}
+
 hashcat_kerberoast() {    
     if [[ -z "$hash_file" ]]; then
         hash_file="hashes.kerberoast"
@@ -233,18 +245,23 @@ hashcat_asrep_kerberoast() {
     if [[ -z "$hash_file" ]]; then
         hash_file="hashes.asreproast"
     else
-        echo "Using provided hash file: $hash_file"c
+        echo "Using provided hash file: $hash_file"
     fi
     hash_mode=18200  # AS-REP Kerberos hash mode
     hashcat_generic
 }
 
 hashcat_show() {    
-    if [[ -z "$hash_file" ]] || [[ -z "$hash_mode" ]]; then
-        echo "Hash file and hash mode must be set before running hashcat --show."
+    if [[ -z "$hash_file" ]]; then
+    #|| [[ -z "$hash_mode" ]]; then
+        echo "Hash file must be set before running hashcat --show."
         return 1
     fi
-    local cmd="hashcat --show -m $hash_mode $hash_file"
+    local hash_mode_option=""
+    if [[ ! -z "$hash_mode" ]]; then
+        hash_mode_option="-m $hash_mode"
+    fi
+    local cmd="hashcat --show $hash_mode_option $hash_file"
     if use_host_for_cracking; then
         ssh "$host_username@$host_computername" "$cmd"
     else
@@ -341,6 +358,79 @@ append_lm_hash() {
     fi
 }
 
+remove_openssh_passphrase() {
+    if [[ -z "$identity" ]]; then
+        echo "Identity file must be set before removing passphrase."
+        return 1
+    fi
+    if [[ -z $passphrase ]]; then
+        echo "Passphrase must be set before removing passphrase."
+        return 1
+    fi
+    ssh-keygen -p -f "$identity" -P $passphrase -N ""
+}
+
+run_netexec() {
+    if [[ -z "$netexec_protocol" ]]; then
+        netexec_protocol=smb
+    fi
+    if [[ -z "$target_ip" ]]; then
+        echo "Target IPs must be set before running netexec."
+        return 1
+    fi
+    local netexec_user_options=""
+    if [[ -z "$username" ]]; then
+        username="users.txt"
+    fi
+    if [[ ! -z "$username" ]]; then
+        netexec_user_options="-u $username"
+        echo "Using $netexec_user_options"
+    fi
+    local netexec_password_options=""
+    if [[ -z "$password" ]]; then
+        password="passwords.txt"
+    fi
+    if [[ ! -z "$password" ]]; then
+        netexec_password_options="-p $password"
+        echo "Using $netexec_password_options"
+    fi
+    if [[ ! -z "$ntlm_hash" ]]; then
+        netexec_password_options="-H $ntlm_hash"
+        echo "Using NTLM hash for authentication."
+    fi
+    local proxychain_command=""
+    if [[ ! -z "$use_proxychain" ]] && [[ "$use_proxychain" == "true" ]]; then
+        proxychain_command="proxychains -q "
+        echo "Running netexec with proxychains"
+    fi    
+    ${proxychain_command}netexec $netexec_protocol $target_ip $netexec_user_options $netexec_password_options $netexec_additional_options
+}
+
+trim_rockyou() {
+    local minimal_characters=$1
+    if [[ -z "$minimal_characters" ]]; then
+        echo "Minimal characters must be set."
+        return 1
+    fi
+    awk "length(\$0) >= $minimal_characters" /usr/share/wordlists/rockyou.txt > rockyou_${minimal_characters}plus.txt
+}
+
+perform_kdbx_recovery() {
+    if [[ ! -f $kdbx_file ]]; then
+        echo "Could not find file $kdbx_file specified"
+        return 1
+    fi
+    hash_file=hashes.${kdbx_file%.kdbx}
+    kdbx_password=$(hashcat_show | grep keepass | awk -F':' '{print $2}')
+    echo $kdbx_password
+    if [[ -z $kdbx_password ]]; then
+        hashcat_kdbx
+    fi
+}
+
+run_keepassxc_cli_command () {
+    echo $kdbx_password | keepassxc-cli $1 $kdbx_file "$2"
+}
 
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     if [[ -z "$1" ]]; then

@@ -12,7 +12,7 @@
 <isDefaultSaveLocation>true</isDefaultSaveLocation>
 <isSupported>false</isSupported>
 <simpleLocation>
-<url>http://{host_ip}/shortcuts</url>
+<url>\\{http_ip}@{http_port}\DavWWWRoot\shortcuts</url>
 </simpleLocation>
 </searchConnectorDescription>
 </searchConnectorDescriptionList>

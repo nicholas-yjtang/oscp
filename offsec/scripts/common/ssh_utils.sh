@@ -29,20 +29,25 @@ run_ssh() {
     if [[ -z "$ssh_options" ]]; then
         echo "No additional ssh options set"
     fi
+    if pgrep -f "ssh .*$username@$ssh_target" > /dev/null; then
+        echo "SSH session is already active"
+        return 0
+    fi
     # instead of using proxy chains, we will use ProxyCommand
     if [[ ! -z "$use_proxychain" ]] && [[ "$use_proxychain" == "true" ]]; then
-        if [[ -z "$chisel_local_interface" ]] || [[ -z "$chisel_local_port" ]] || [[ -z "$chisel_remote_interface" ]] || [[ -z "$chisel_remote_port" ]]; then
+        if [[ -z "$chisel_local_interface" ]] || [[ -z "$chisel_local_port" ]]; then
             echo "Chisel local and remote interfaces and ports must be set for proxy to work"
             return 1
         fi
-        ssh_options="-o ProxyCommand=\"ncat --proxy-type socks5 $chisel_local_interface:$chisel_local_port  %h %p\" $ssh_options"
+        ssh_options="-o ProxyCommand=\"ncat --proxy-type socks5 --proxy $chisel_local_interface:$chisel_local_port %h %p\" $ssh_options"
+        echo "ssh_options=$ssh_options"
     fi        
     local command="$1"
     if [[ -z "$command" ]]; then
-        echo "Running SSH command on $ssh_target as $username with port $ssh_port" 
-        sshpass -p $password ssh -v  $ssh_options -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no $username@$ssh_target -p $ssh_port | tee >(remove_color_to_log >> $trail_log)
+        echo sshpass -p $password ssh $ssh_options -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no $username@$ssh_target -p $ssh_port | tee >(remove_color_to_log >> $trail_log)
+        eval "sshpass -p $password ssh $ssh_options -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no $username@$ssh_target -p $ssh_port" | tee >(remove_color_to_log >> $trail_log)
     else
-        sshpass -p $password ssh -v $ssh_options -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no $username@$ssh_target -p $ssh_port "$command" | tee >(remove_color_to_log >> $trail_log)
+        eval "sshpass -p $password ssh $ssh_options -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no $username@$ssh_target -p $ssh_port \"$command\"" | tee >(remove_color_to_log >> $trail_log)
     fi
 }
 
@@ -62,19 +67,23 @@ run_ssh_identity() {
     if [[ -z "$trail_log" ]]; then
         trail_log="trail.log"
     fi    
+    if pgrep -f "ssh .*$username@$ssh_target" > /dev/null; then
+        echo "SSH session is already active"
+        return 0
+    fi
     # instead of using proxy chains, we will use ProxyCommand
     if [[ ! -z "$use_proxychain" ]] && [[ "$use_proxychain" == "true" ]]; then
-        if [[ -z "$chisel_local_interface" ]] || [[ -z "$chisel_local_port" ]] || [[ -z "$chisel_remote_interface" ]] || [[ -z "$chisel_remote_port" ]]; then
+        if [[ -z "$chisel_local_interface" ]] || [[ -z "$chisel_local_port" ]]; then
             echo "Chisel local and remote interfaces and ports must be set for proxy to work"
             return 1
         fi
-        ssh_options="-o ProxyCommand=\"ncat --proxy-type socks5 $chisel_local_interface:$chisel_local_port  %h %p\" $ssh_options"
+        ssh_options="-o ProxyCommand=\"ncat --proxy-type socks5 --proxy $chisel_local_interface:$chisel_local_port  %h %p\" $ssh_options"
     fi
     local command="$1"
     if [[ -z "$command" ]]; then
-        ssh -i $identity  -v -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no $username@$ssh_target -p $ssh_port | tee >(remove_color_to_log >> $trail_log)
+        eval "ssh -i $identity $ssh_options -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no $username@$ssh_target -p $ssh_port" | tee >(remove_color_to_log >> $trail_log)
     else
-        ssh -i $identity  -v -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no $username@$ssh_target -p $ssh_port "$command" | tee >(remove_color_to_log >> $trail_log)
+        eval "ssh -i $identity $ssh_options -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no $username@$ssh_target -p $ssh_port \"$command\"" | tee >(remove_color_to_log >> $trail_log)
     fi
 
 }

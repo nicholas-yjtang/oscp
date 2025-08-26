@@ -25,7 +25,12 @@ run_gobuster() {
         echo "$gobuster_log already exists, skipping Gobuster scan."
         return
     fi
-    gobuster dir -u http://$target:$port -w /usr/share/wordlists/dirb/common.txt $options --no-color --no-progress --quiet -o "$gobuster_log"
+    local proxy_options=""
+    if [[ ! -z $use_proxychain ]] && [[ $use_proxychain == "true" ]]; then
+          echo "Using proxychains for Gobuster scan."
+          proxy_options="--proxy socks5://$proxy_target:$proxy_port"
+    fi
+    gobuster dir $proxy_options -u http://$target:$port -w /usr/share/wordlists/dirb/common.txt $options --no-color --no-progress --quiet -o "$gobuster_log"
 
 }
 

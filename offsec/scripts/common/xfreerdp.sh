@@ -2,8 +2,8 @@
 
 
 run_xfreerdp() {
-    if [ -z  "$username" ] || [ -z "$password" ]; then
-        echo "username and password must be set before running xfreerdp."
+    if [ -z  "$username" ]; then
+        echo "username must be set before running xfreerdp."
         return 1
     fi
     local port=$1
@@ -29,8 +29,24 @@ run_xfreerdp() {
             return
         fi
     fi
+
     echo "Starting xfreerdp to connect to $rdp_ip on port $port with username $username"
-    local xfreerdp_options="/v:$rdp_ip /port:$port $domain_option /u:$username /p:$password /cert-ignore /smart-sizing +home-drive +clipboard"
+    local xfreerdp_options="/v:$rdp_ip /port:$port $domain_option /u:$username /cert-ignore /smart-sizing +home-drive +clipboard"
+    if [[ ! -z $use_proxychain ]] && [[ $use_proxychain == "true" ]]; then
+        xfreerdp_options="$xfreerdp_options /proxy:socks5://$proxy_target:$proxy_port"
+    fi
+    if [[ ! -z "$use_kerberos" ]] && [[ $use_kerberos == "true" ]]; then
+        echo "Using Kerberos authentication"
+        xfreerdp_options="$xfreerdp_options /sec:nla /p:''"
+    else
+        if [[ ! -z "$ntlm_hash" ]]; then
+            echo "Using NTLM authentication"
+            xfreerdp_options="$xfreerdp_options /pth:$ntlm_hash"
+        else
+            echo "Using password authentication"
+            xfreerdp_options="$xfreerdp_options /p:$password"
+        fi
+    fi
     echo "xfreerdp options: $xfreerdp_options"
     if $run_in_background; then
         echo "Running xfreerdp in the background"

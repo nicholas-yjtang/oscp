@@ -10,8 +10,9 @@ perform_full_setup() {
 }
 
 if [[ -z "$1" ]]; then
-    echo "No argument provided. Please provide ending ip or ip address"
-    exit 1
+    echo "Warning! No argument provided. Please provide ending ip or ip address"
+    echo "Your variable ip might not be set correctly."
+    return 1
 fi
 
 if [[ "$1" =~ ^[0-9]+$ ]]; then
@@ -20,8 +21,8 @@ else
     if [[ "$1" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
         ip="$1"
     else
-        echo "Invalid argument. Please provide a valid IP address or ending octet."
-        exit 1
+        echo "Warning! Invalid argument. Please provide a valid IP address or ending octet."
+        return 1
     fi
 fi
 perform_full_setup

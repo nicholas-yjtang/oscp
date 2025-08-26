@@ -1,4 +1,5 @@
 #!/bin/bash
+
 run_wpscan() {
     local url="$1"
     if [[ -z "$url" ]]; then
@@ -13,8 +14,13 @@ run_wpscan() {
         echo "WPScan output already exists, skipping scan."
         return
     fi
+    local proxy_command=""
+    if [[ ! -z $use_proxychain ]] && [[ $use_proxychain == "true" ]]; then
+        proxy_command="proxychains -q "
+        echo "Using proxychains for WPScan."
+    fi
     echo "Running WPScan..."
-    wpscan --url http://$url --enumerate ap --plugins-detection aggressive | tee >(remove_color_to_log >> $wpscan_log)
+    eval ${proxy_command}wpscan --url http://$url --enumerate p --plugins-detection aggressive | tee >(remove_color_to_log >> $wpscan_log)
 }
 
 login_wp() {

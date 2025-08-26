@@ -62,7 +62,7 @@ nmap_tcp_proxychains() {
         return 1
     fi
     echo "Running nmap with proxychains..."
-    sudo proxychains nmap -v --open $additional_nmap_args -oN "$nmap_tcp_log" $target_ip
+    sudo proxychains -q nmap -v --open -sT -Pn $additional_nmap_args -oN "$nmap_tcp_log" $target_ip
     #seq 1 65535 | xargs -P 50 -I port sudp proxychains -q nmap -sVC -p port -T4 -sT --open $target_ip $additional_nmap_args -oN $nmap_tcp_log --append-output
 
 }

