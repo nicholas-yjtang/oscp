@@ -15,6 +15,8 @@ get_powershell_search_commands() {
     echo 'Get-ChildItem -Path C:\Users -Recurse -Force -ErrorAction SilentlyContinue -Include "*.txt","*.log","*.xml","*.ini" | ForEach-Object { "$($_.Directory.FullName)\$($_.Name)"}'
     echo 'Get-ChildItem -Path C:\ -Recurse -Force -ErrorAction SilentlyContinue -Include "*.kdbx" | Where-Object { $_.FullName -notmatch "microsoft|windows" } | ForEach-Object { "$($_.Directory.FullName)\$($_.Name)"}'
     echo 'Get-ChildItem -Path C:\ -Recurse -Force -ErrorAction SilentlyContinue -Include "*.txt","*.log","*.xml","*.ini" | Where-Object { $_.FullName -notmatch "microsoft|windows" } | Select-String -Pattern "password"'
+    echo 'Find possibly sam/system dumps'
+    echo 'Get-ChildItem -Recurse | Select-String -Pattern "^reg"'
 }
 
 get_command_search_commands() {

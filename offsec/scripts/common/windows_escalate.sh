@@ -123,10 +123,12 @@ create_run_windows_shell_dll() {
 }
 
 create_run_windows_exe() {
-    local command="$1"
-    if [ -z "$command" ]; then
-        echo "Command is required for creating run_windows_exe."
-        exit 1
+    local command=""
+    if [ ! -z "$cmd" ]; then
+        command="$cmd"
+    fi
+    if [ ! -z "$1" ]; then
+        command="$1"
     fi
     command=$(escape_sed "$command")
     cp "$SCRIPTDIR/../c/run_windows.c" run_windows.c

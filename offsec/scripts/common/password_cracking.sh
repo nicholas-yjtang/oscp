@@ -113,6 +113,16 @@ hashcat_phpass() {
     hashcat_generic
 }
 
+hashcat_php_bcrypt() {
+    if [[ -z "$hash_file" ]]; then
+        hash_file="hashes.phpbcrypt"
+    else
+        echo "Using provided hash file: $hash_file"
+    fi    
+    hash_mode=3200  # bcrypt hash mode
+    hashcat_generic
+}
+
 hashcat_ssh_password() {
     if [[ -z "$identity" ]]; then
         echo "Identity file must be set before running hashcat for SSH password."
@@ -380,7 +390,7 @@ run_netexec() {
     fi
     local netexec_user_options=""
     if [[ -z "$username" ]]; then
-        username="users.txt"
+        username="usernames.txt"
     fi
     if [[ ! -z "$username" ]]; then
         netexec_user_options="-u $username"
@@ -403,6 +413,7 @@ run_netexec() {
         proxychain_command="proxychains -q "
         echo "Running netexec with proxychains"
     fi    
+    echo ${proxychain_command}netexec $netexec_protocol $target_ip $netexec_user_options $netexec_password_options $netexec_additional_options
     ${proxychain_command}netexec $netexec_protocol $target_ip $netexec_user_options $netexec_password_options $netexec_additional_options
 }
 
@@ -413,6 +424,45 @@ trim_rockyou() {
         return 1
     fi
     awk "length(\$0) >= $minimal_characters" /usr/share/wordlists/rockyou.txt > rockyou_${minimal_characters}plus.txt
+}
+
+convert_zip_to_hashcat() {
+    if [[ -z $target_zip ]]; then
+        echo "Please set a target_zip file"
+        return 1
+    fi
+    if [[ -z "$hash_file" ]]; then
+        echo "Please set a hash_file"
+        return 1
+    fi
+
+    local url="https://github.com/hashstation/zip2hashcat/archive/refs/heads/main.zip"    
+    if [[ ! -d zip2hashcat-main ]]; then
+        echo "Directory zip2hashcat-main does not exist."
+        wget "$url" -O zip2hashcat.zip
+        unzip zip2hashcat.zip
+    fi
+    if [[ ! -f zip2hashcat ]]; then
+        pushd zip2hashcat-main || return 1 
+        make
+        cp zip2hashcat ../
+        popd || exit 1
+    fi
+    ./zip2hashcat $target_zip > $hash_file
+}
+
+
+hashcat_zip() {
+
+    if [[ -z "$hash_file" ]]; then
+        hash_file=hashes.zip
+        echo "Setting default hash_file to $hash_file"
+    else
+        echo "Using provided hash file: $hash_file"
+    fi
+    hash_mode=13600
+    hashcat_generic
+
 }
 
 perform_kdbx_recovery() {

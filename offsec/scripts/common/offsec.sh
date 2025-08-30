@@ -55,3 +55,4 @@ setup_alvida() {
     add_host alvida-eatery.org "$alvida_ip"
 
 }
+

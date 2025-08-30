@@ -8,8 +8,8 @@ start_http_server() {
         http_port=$1
     fi
     if [ -z "$http_port" ]; then
-        echo "Going to use default HTTP port 8000"
-        http_port=8000
+        http_port=80
+        echo "Going to use default HTTP port $http_port"
     fi
     if [ -z "$http_ip" ]; then
         http_ip=$(get_host_ip)
@@ -36,8 +36,8 @@ stop_http_server() {
 
 start_webdav_server() {
     if [ -z "$http_port" ]; then
-        echo "Going to use default HTTP port 8000"
-        http_port=8000
+        http_port=80
+        echo "Going to use default HTTP port $http_port"
     fi
     if [ -z "$http_ip" ]; then
         http_ip=$(get_host_ip)

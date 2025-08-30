@@ -88,8 +88,50 @@ stop_chisel_server() {
     fi
 }
 
-get_chisel_client_commands() {
+get_kill_chisel_command(){
+    local cmd=""
+    if [[ ! -z "$chisel_windows" ]] && [[ "$chisel_windows" == "true" ]] ; then
+        cmd="Get-Process -Name chisel.exe | Stop-Process -Force;"
+    else
+        cmd="pkill -f 'chisel client'; pkill -f 'chisel server'"
+    fi
+    echo "$cmd"
+}
 
+get_chisel_server_command() {
+    if [[ -z $chisel_windows_folder_path ]]; then
+        chisel_windows_folder_path='C:\Windows\Temp\'
+    fi
+    local chisel_file="chisel"
+    if [[ ! -z "$chisel_windows" ]] && [[ "$chisel_windows" == "true" ]] ; then
+        chisel_file=$chisel_windows_folder_path'chisel.exe'
+        generate_windows_download "chisel.exe" "$chisel_file"
+        if [[ -z $chisel_powershell ]]; then
+            chisel_powershell=true
+        fi
+    else
+        chisel_file="./"$chisel_file
+    fi
+    if [ -z "$chisel_server_options" ]; then
+        chisel_server_options="--reverse"
+    fi
+    if [[ -z $chisel_background ]]; then
+        chisel_background=true
+    fi
+    if [[ ! -z "$chisel_background" ]] && [[ "$chisel_background" == "true" ]] ; then
+        if [[ ! -z "$chisel_powershell" ]] && [[ "$chisel_powershell" == "true" ]] ; then
+            echo 'Start-Process -FilePath "'$chisel_file'" -ArgumentList "server","--port","'$chisel_server_port'", "'$chisel_server_options'" -NoNewWindow;'
+            return 0
+        else
+            chisel_server_options+=" &"
+        fi
+    fi
+    echo $chisel_file server --port $chisel_server_port $chisel_server_options 
+
+}
+
+
+get_chisel_client_commands() {
     local chisel_client_options=$1
     if [ ! -z "$chisel_client_options" ]; then
         chisel_client_options+=" "
@@ -101,9 +143,14 @@ get_chisel_client_commands() {
     if [[ ! -z "$chisel_windows" ]] && [[ "$chisel_windows" == "true" ]] ; then
         chisel_file=$chisel_windows_folder_path'chisel.exe'
         generate_windows_download "chisel.exe" "$chisel_file"
+        if [[ -z $chisel_powershell ]]; then
+            chisel_powershell=true
+        fi
+    else
+        chisel_file="./"$chisel_file        
     fi
     if [[ -z "$chisel_server_ip" ]]; then
-        if pgrep -f "chisel server"; then
+        if pgrep -f "chisel server" > /dev/null; then
             chisel_server_ip=$(get_host_ip)
         else
             echo "Chisel server is not running. Please start it first."
@@ -117,7 +164,7 @@ get_chisel_client_commands() {
             return 1
         fi
     fi
-    if pgrep -f "chisel server .*reverse"; then
+    if pgrep -f "chisel server .*reverse" > /dev/null; then
         chisel_client_options+="R:"
     else
         chisel_client_options+=""
@@ -148,18 +195,16 @@ get_chisel_client_commands() {
     if [[ -z $chisel_background ]]; then
         chisel_background=true
     fi
-    if [[ -z $chisel_powershell ]]; then
-        chisel_powershell=true
-    fi
+
     if [[ ! -z "$chisel_background" ]] && [[ "$chisel_background" == "true" ]] ; then
         if [[ ! -z "$chisel_powershell" ]] && [[ "$chisel_powershell" == "true" ]] ; then
-            echo 'Start-Process -FilePath "'$chisel_file'" -ArgumentList "client", "'$chisel_server_ip':'$chisel_server_port'", "'$chisel_client_options'" -NoNewWindow'
+            echo 'Start-Process -FilePath "'$chisel_file'" -ArgumentList "client", "'$chisel_server_ip':'$chisel_server_port'", "'$chisel_client_options'" -NoNewWindow;'
             return 0
         else
             chisel_client_options+=" &"
         fi
     fi
-
+    echo "$chisel_file client $chisel_server_ip:$chisel_server_port $chisel_client_options" >> $log_dir/chisel.log
     echo "$chisel_file client $chisel_server_ip:$chisel_server_port $chisel_client_options"
 }
 
@@ -249,3 +294,45 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     fi
     echo "Usage: $0 {get_chisel|compile_chisel [go_version] [chisel_version]|start_chisel_server [port]|stop_chisel_server}"
 fi
+
+configure_chisel_for_ad_pivot() {
+    compile_chisel >> $log_dir/chisel.log 2>&1
+    chisel_windows=true
+    compile_chisel >> $log_dir/chisel.log 2>&1
+    start_chisel_server >> $log_dir/chisel.log 2>&1
+    get_chisel_client_commands
+    chisel_client_command=$(get_chisel_client_commands)
+    configure_proxychains_chisel >> $log_dir/chisel.log 2>&1
+}
+
+configure_chisel_for_local_http(){
+    if [[ ! -z $1 ]]; then
+        chisel_server_ip=$1
+    fi
+    compile_chisel >> $log_dir/chisel.log 2>&1
+    chisel_windows=true
+    compile_chisel >> $log_dir/chisel.log 2>&1
+    get_chisel_server_command
+    chisel_server_command=$(get_chisel_server_command)
+    chisel_windows=false
+    chisel_powershell=false
+    chisel_remote_host=$http_ip
+    chisel_remote_port=$http_port
+    get_chisel_client_commands
+    chisel_client_command=$(get_chisel_client_commands)
+    if pgrep -f "chisel client" > /dev/null; then
+        echo "Chisel client for http is already running, skipping start"
+    else
+        eval $chisel_client_command >> $log_dir/chisel.log 2>&1
+    fi
+    if ss -ntpu | grep -q "$chisel_server_ip:$chisel_server_port"; then
+        echo "Chisel client for http is already connected, skipping wait"    
+    fi
+
+}
+
+configure_http_to_use_chisel() {
+    http_port=$chisel_local_port
+    http_ip=$chisel_local_interface
+    echo "All downloads will use http://$http_ip:$http_port"
+}

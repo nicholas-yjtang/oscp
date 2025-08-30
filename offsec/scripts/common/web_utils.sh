@@ -289,3 +289,39 @@ perform_phpmyadmin_attack() {
 
 
 }
+
+download_web_folder() {
+    if [[ -z $download_folder ]]; then
+        download_folder="download"
+    fi
+    if [[ ! -d "$download_folder" ]]; then
+        mkdir -p "$download_folder"
+    fi
+    pushd "$download_folder" || return 1
+    if [[ ! -z "$1" ]]; then
+        target_url="$1"
+    fi
+    if [[ -z "$target_url" ]]; then
+        echo "Target URL is not set."
+        return 1
+    fi
+    wget -r -nH -R 'index.html*' --no-parent $target_url
+    popd || return 1
+}
+
+generate_php_hash() {
+    if [[ -z "$password" ]]; then
+        echo "Password is not set."
+        return 1
+    fi
+    local php_password=$password
+    if [[ -z "$php_password_algorithm" ]]; then
+        php_password_algorithm=PASSWORD_DEFAULT
+    fi
+    cp $SCRIPTDIR/../php/password_hash.php .
+    local php_password=$(escape_sed $password)
+    php_password_algorithm=$(escape_sed $php_password_algorithm)
+    sed -E -i "s/\{php_password\}/$php_password/g" password_hash.php
+    sed -E -i "s/\{php_password_algorithm\}/$php_password_algorithm/g" password_hash.php
+    php password_hash.php
+}
