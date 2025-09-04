@@ -117,10 +117,13 @@ get_chisel_server_command() {
     fi
     if [[ -z $chisel_background ]]; then
         chisel_background=true
-    fi
+    fi   
     if [[ ! -z "$chisel_background" ]] && [[ "$chisel_background" == "true" ]] ; then
         if [[ ! -z "$chisel_powershell" ]] && [[ "$chisel_powershell" == "true" ]] ; then
-            echo 'Start-Process -FilePath "'$chisel_file'" -ArgumentList "server","--port","'$chisel_server_port'", "'$chisel_server_options'" -NoNewWindow;'
+            echo 'Start-Process -FilePath "'$chisel_file'" -ArgumentList "server","--port","'$chisel_server_port'", "'$chisel_server_options'" -NoNewWindow -PassThru;'
+            return 0
+        elif [[ ! -z "$chisel_windows" ]] && [[ "$chisel_windows" == "true" ]] ; then
+            echo "cmd /c 'start /b  $chisel_file server --port $chisel_server_port $chisel_server_options';"
             return 0
         else
             chisel_server_options+=" &"
@@ -198,7 +201,10 @@ get_chisel_client_commands() {
 
     if [[ ! -z "$chisel_background" ]] && [[ "$chisel_background" == "true" ]] ; then
         if [[ ! -z "$chisel_powershell" ]] && [[ "$chisel_powershell" == "true" ]] ; then
-            echo 'Start-Process -FilePath "'$chisel_file'" -ArgumentList "client", "'$chisel_server_ip':'$chisel_server_port'", "'$chisel_client_options'" -NoNewWindow;'
+            echo 'Start-Process -FilePath "'$chisel_file'" -ArgumentList "client", "'$chisel_server_ip':'$chisel_server_port'", "'$chisel_client_options'" -NoNewWindow -PassThru;'
+            return 0
+        elif [[ ! -z "$chisel_windows" ]] && [[ "$chisel_windows" == "true" ]] ; then
+            echo "cmd /c 'start /b  $chisel_file client $chisel_server_ip:$chisel_server_port $chisel_client_options';"
             return 0
         else
             chisel_client_options+=" &"
@@ -270,8 +276,10 @@ configure_proxychains() {
 }
 
 configure_proxychains_chisel() {
-    configure_proxychains "$chisel_local_interface" "$chisel_local_port"
-    use_proxychain=true
+    if is_chisel_client_connected; then
+        configure_proxychains "$chisel_local_interface" "$chisel_local_port"
+        use_proxychain=true
+    fi
 }
 
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
@@ -302,7 +310,7 @@ configure_chisel_for_ad_pivot() {
     start_chisel_server >> $log_dir/chisel.log 2>&1
     get_chisel_client_commands
     chisel_client_command=$(get_chisel_client_commands)
-    configure_proxychains_chisel >> $log_dir/chisel.log 2>&1
+    configure_proxychains_chisel
 }
 
 configure_chisel_for_local_http(){
@@ -320,19 +328,56 @@ configure_chisel_for_local_http(){
     chisel_remote_port=$http_port
     get_chisel_client_commands
     chisel_client_command=$(get_chisel_client_commands)
-    if pgrep -f "chisel client" > /dev/null; then
+    if is_chisel_client_running; then
         echo "Chisel client for http is already running, skipping start"
     else
+        echo "Starting Chisel client for http with $chisel_client_command"
         eval $chisel_client_command >> $log_dir/chisel.log 2>&1
     fi
-    if ss -ntpu | grep -q "$chisel_server_ip:$chisel_server_port"; then
-        echo "Chisel client for http is already connected, skipping wait"    
+    configure_http_to_use_chisel
+}
+
+is_chisel_client_running() {
+    if pgrep -f "chisel client $chisel_server_ip:$chisel_server_port.*$chisel_local_interface:$chisel_local_port" > /dev/null; then
+        echo "Chisel client is running."
+        return 0
+    else
+        echo "Chisel client is not running."
+        return 1
     fi
 
 }
 
+is_chisel_http_connected() {    
+    #echo 'ss -ntp | grep -E -q "'$chisel_server_ip'\\]{0,1}:'$chisel_server_port'.*chisel"'
+    if ss -ntp | grep -q -E "$chisel_server_ip\\]{0,1}:$chisel_server_port.*chisel"; then
+        echo "Chisel client for http is connected $chisel_server_ip:$chisel_server_port."
+        return 0
+    else
+        echo "Chisel client for http is not connected on port $chisel_server_ip:$chisel_server_port."
+        return 1
+    fi
+}
+
 configure_http_to_use_chisel() {
-    http_port=$chisel_local_port
-    http_ip=$chisel_local_interface
-    echo "All downloads will use http://$http_ip:$http_port"
+    if is_chisel_http_connected; then
+        echo "Chisel client for http is already connected, skipping http configuration"
+        http_port=$chisel_local_port
+        http_ip=$chisel_local_interface
+        echo "All downloads will use http://$http_ip:$http_port"        
+    fi
+
+}
+
+configure_shell_for_chisel() {
+    chisel_local_port=$host_port
+    chisel_remote_port=$host_port
+    get_chisel_client_commands
+    chisel_client_command=$(get_chisel_client_commands)
+    if is_chisel_client_running; then
+        echo "Chisel client $chisel_client_command is already running, skipping start"
+    else
+        eval $chisel_client_command >> $log_dir/chisel.log 2>&1
+    fi
+    host_ip=$chisel_local_interface
 }

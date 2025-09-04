@@ -30,3 +30,5 @@ source $COMMONDIR/windows_enumeration.sh
 source $COMMONDIR/sqli.sh
 source $COMMONDIR/web_utils.sh
 source $COMMONDIR/client_side_attacks.sh
+source $COMMONDIR/linux_enumeration.sh
+source $COMMONDIR/snmp.sh

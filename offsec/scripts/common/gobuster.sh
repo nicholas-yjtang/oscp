@@ -59,5 +59,5 @@ run_feroxbuster() {
         echo "$feroxbuster_log already exists, skipping Feroxbuster scan."
         return
     fi
-    feroxbuster -u "http://$target""$target_port" -w /usr/share/seclists/Discovery/Web-Content/directory-list-2.3-small.txt --quiet --silent -o $feroxbuster_log 
+    feroxbuster -u "http://$target""$target_port" -w /usr/share/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt --quiet -o $feroxbuster_log 
 }   

