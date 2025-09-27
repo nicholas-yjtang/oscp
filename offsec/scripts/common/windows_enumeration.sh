@@ -13,10 +13,19 @@ download_winPEAS () {
 get_powershell_search_commands() {
     echo 'Get-ChildItem -Path C:\ -Recurse -Force -ErrorAction SilentlyContinue -Include "*.txt","*.log","*.xml","*.ini" | Where-Object { $_.FullName -notmatch "microsoft|windows" } | ForEach-Object { "$($_.Directory.FullName)\$($_.Name)"}'
     echo 'Get-ChildItem -Path C:\Users -Recurse -Force -ErrorAction SilentlyContinue -Include "*.txt","*.log","*.xml","*.ini" | ForEach-Object { "$($_.Directory.FullName)\$($_.Name)"}'
+    echo 'Get-ChildItem -Path C:\Users -Recurse -File -ErrorAction SilentlyContinue | ForEach-Object { "$($_.Directory.FullName)\$($_.Name)"}'
     echo 'Get-ChildItem -Path C:\ -Recurse -Force -ErrorAction SilentlyContinue -Include "*.kdbx" | Where-Object { $_.FullName -notmatch "microsoft|windows" } | ForEach-Object { "$($_.Directory.FullName)\$($_.Name)"}'
     echo 'Get-ChildItem -Path C:\ -Recurse -Force -ErrorAction SilentlyContinue -Include "*.txt","*.log","*.xml","*.ini" | Where-Object { $_.FullName -notmatch "microsoft|windows" } | Select-String -Pattern "password"'
     echo 'Find possibly sam/system dumps'
-    echo 'Get-ChildItem -Recurse | Select-String -Pattern "^reg"'
+    echo 'Get-ChildItem -Recurse -ErrorAction SilentlyContinue | Select-String -Pattern "^reg"'    
+    get_powershell_services_command
+    get_powershell_scheduled_tasks_command
+
+}
+
+get_powershell_services_command(){
+    echo 'Get-Service'
+    echo 'Get-WmiObject win32_service | Select-Object Name, PathName'
 }
 
 get_command_search_commands() {
@@ -24,7 +33,7 @@ get_command_search_commands() {
     echo 'dir /s /b | findstr "txt$ log$ ini$ conf$ properties$ xml$" | findstr /v "windows microsoft"'
 }
 
-get_powershell_scheduled_tasks() {
+get_powershell_scheduled_tasks_command() {
 
     echo 'Get-ScheduledTask | ForEach-Object {'
     echo '    $taskName = $_.TaskName'
@@ -59,4 +68,10 @@ test_anonymous_smb() {
     else
         echo "Anonymous SMB access is NOT allowed on $target_ip"
     fi
+}
+
+get_psconsole_history() {
+
+    echo 'Get-ChildItem -Path C:\Users -Recurse -Force -ErrorAction SilentlyContinue -Include "ConsoleHost_history.txt" | ForEach-Object { Get-Content $_.FullName }'
+
 }

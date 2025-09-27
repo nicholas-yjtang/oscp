@@ -6,15 +6,11 @@ run_xfreerdp() {
         echo "username must be set before running xfreerdp."
         return 1
     fi
-    local port=$1
-    if [ -z "$port" ]; then
-        port=3389  # Default RDP port
+    if [[ -z "$rdp_port" ]] && [[ -z $rdp_file ]]; then
+        rdp_port=3389  # Default RDP port
     fi
-    domain_option=""
-    if [ ! -z "$domain" ]; then
-        domain_option="/d:$domain"
-    fi
-    if [ -z "$rdp_ip" ]; then
+
+    if [[ -z "$rdp_ip" ]] && [[ -z $rdp_file ]]; then
         rdp_ip=$ip
     fi
     if [ -z "$trail_log" ]; then
@@ -23,22 +19,61 @@ run_xfreerdp() {
     if [[ ! -z $run_rdp_forced ]] && [[ $run_rdp_forced == "true" ]]; then
         echo "Running xfreerdp with forced RDP connection"
     else
-        local rdp_running=$(ss -tupn | grep "$rdp_ip:$port")
-        if [ ! -z "$rdp_running" ]; then
-            echo "RDP is already running on $rdp_ip:$port"
-            return
+        if ss -tupn | grep "$rdp_ip:$rdp_port" | grep "xfreerdp"; then
+            echo "RDP is already running on $rdp_ip:$rdp_port"
+            return 0
         fi
     fi
-
-    echo "Starting xfreerdp to connect to $rdp_ip on port $port with username $username"
-    local xfreerdp_options="/v:$rdp_ip /port:$port $domain_option /u:$username /cert-ignore /smart-sizing +home-drive +clipboard"
+    local xfreerdp_command=""
+    if [[ ! -z $xfreerdp_version ]] && [[ $xfreerdp_version == "flatpak" ]]; then
+        xfreerdp_command="flatpak run --command=xfreerdp com.freerdp.FreeRDP"
+    elif [[ ! -z "$xfreerdp_version" ]] && [[ $xfreerdp_version == "3" ]]; then
+        xfreerdp_command="xfreerdp3"
+    else
+        xfreerdp_version="2"
+        xfreerdp_command="xfreerdp"
+    fi
+    local xfreerdp_options=""
+    if [[ ! -z $rdp_file ]] && [[ -f $rdp_file ]]; then
+        xfreerdp_options="$rdp_file"
+    fi
+    if [[ ! -z $rdp_ip ]]; then
+        xfreerdp_options="$xfreerdp_options /v:$rdp_ip"
+    fi
+    if [[ ! -z $rdp_port ]]; then
+        xfreerdp_options="$xfreerdp_options /port:$rdp_port"
+    fi
+    if [[ ! -z "$domain" ]]; then
+        xfreerdp_options="$xfreerdp_options /d:$domain"
+    fi
+    if [[ ! -z "$username" ]]; then
+        xfreerdp_options="$xfreerdp_options /u:$username"
+    fi
     if [[ ! -z $use_proxychain ]] && [[ $use_proxychain == "true" ]]; then
         xfreerdp_options="$xfreerdp_options /proxy:socks5://$proxy_target:$proxy_port"
+    else
+        if [[ ! -z $proxy_target ]]; then
+            local proxy_url=""
+            if [[ ! -z $proxy_username ]]; then
+                proxy_url="$proxy_username"
+                if [[ ! -z $proxy_password ]]; then
+                    proxy_url="$proxy_url:$proxy_password"
+                fi
+                proxy_url="$proxy_url@"
+            fi
+            proxy_url="$proxy_url$proxy_target:$proxy_port"
+            xfreerdp_options="$xfreerdp_options /proxy:http://$proxy_url"
+        fi
     fi
     if [[ ! -z "$use_kerberos" ]] && [[ $use_kerberos == "true" ]]; then
         echo "Using Kerberos authentication"
         xfreerdp_options="$xfreerdp_options /sec:nla /p:''"
     else
+        if [[ $xfreerdp_version == "2" ]]; then
+            xfreerdp_options="$xfreerdp_options -sec-nla"
+        else
+            xfreerdp_options="$xfreerdp_options /sec:nla:off"
+        fi
         if [[ ! -z "$ntlm_hash" ]]; then
             echo "Using NTLM authentication"
             xfreerdp_options="$xfreerdp_options /pth:$ntlm_hash"
@@ -47,12 +82,17 @@ run_xfreerdp() {
             xfreerdp_options="$xfreerdp_options /p:$password"
         fi
     fi
+    echo "Starting xfreerdp to connect to $rdp_ip on port $rdp_port with username $username"
+    xfreerdp_options="$xfreerdp_options /cert:ignore /smart-sizing +home-drive +clipboard"
+    if [[ ! -z "$xfreerdp_additional_options" ]]; then
+        xfreerdp_options="$xfreerdp_options $xfreerdp_additional_options"
+    fi
     echo "xfreerdp options: $xfreerdp_options"
     if $run_in_background; then
         echo "Running xfreerdp in the background"
-        xfreerdp $xfreerdp_options >> $trail_log 2>&1 &
+        $xfreerdp_command $xfreerdp_options | tee >(remove_color_to_log >> $trail_log ) & #>> $trail_log 2>&1 &
     else
         echo "Running xfreerdp in the foreground"
-        xfreerdp $xfreerdp_options >> $trail_log 2>&1
+        $xfreerdp_command $xfreerdp_options | tee >(remove_color_to_log >> $trail_log)
     fi
 }

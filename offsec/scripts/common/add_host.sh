@@ -11,7 +11,8 @@ add_host() {
         exit 1
     fi
     host=${host,,} # Convert to lowercase
-    local hostname_found=$(cat /etc/hosts |  grep -E " $host( |$)" | awk '{print $1}')
+    local test_host=$(echo "$host" | sed 's/\./\\\./g') # Escape dots
+    local hostname_found=$(cat /etc/hosts |  grep -E " $test_host( |$)" | awk '{print $1}')
     local ip_found=$(cat /etc/hosts | grep $ip | awk '{print $1}')
     if [[ -z "$hostname_found" ]] && [[ -z "$ip_found" ]]; then
         echo "$ip $host" | sudo tee -a /etc/hosts

