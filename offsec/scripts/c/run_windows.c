@@ -1,8 +1,24 @@
 #include <stdlib.h>
 
-int main () {
+int main (int argc, char *argv[]) {
     int i;    
-    //i = system("START \"command\" /B {command}");
-    i = system("{command}");
+#ifdef ACCEPT_ARGS
+    if (argc > 1) {
+        i = system(argv[1]);
+    }
+    else {
+    #ifdef RUN_BACKGROUND
+        i = system("START /B {command}");
+    #else
+        i = system("{command}");
+    #endif
+    }
+#else
+    #ifdef RUN_BACKGROUND
+        i = system("START /B {command}");
+    #else
+        i = system("{command}");
+    #endif
+#endif
     return 0;
 }

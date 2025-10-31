@@ -52,12 +52,13 @@ run_ssh() {
         ssh_options="-o ProxyCommand=\"ncat --proxy-type socks5 --proxy $proxy_target:$proxy_port %h %p\" $ssh_options"
         echo "ssh_options=$ssh_options"
     fi
+    local ssh_command="sshpass -p '$password' ssh $ssh_options -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -o PreferredAuthentications=password -o PubkeyAuthentication=no $username@$ssh_target -p $ssh_port"
     if [[ -z "$command" ]]; then
-        echo sshpass -p $password ssh $ssh_options -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no $username@$ssh_target -p $ssh_port 
-        eval "sshpass -p '$password' ssh $ssh_options -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no $username@$ssh_target -p $ssh_port" | tee >(remove_color_to_log >> "$log_dir/ssh_trail_$ssh_target.log")
+        echo "$ssh_command"
+        eval "$ssh_command" | tee >(remove_color_to_log >> "$log_dir/ssh_trail_$ssh_target.log")
     else
-        echo "sshpass -p $password ssh $ssh_options -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no $username@$ssh_target -p $ssh_port \"$command\""
-        eval "sshpass -p '$password' ssh $ssh_options -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no $username@$ssh_target -p $ssh_port \"$command\"" | tee >(remove_color_to_log >> "$log_dir/ssh_trail_$ssh_target.log")
+        echo "$ssh_command \"$command\""
+        eval "$ssh_command \"$command\"" | tee >(remove_color_to_log >> "$log_dir/ssh_trail_$ssh_target.log")
     fi
 }
 
@@ -77,7 +78,7 @@ run_ssh_identity() {
     if [[ -z "$trail_log" ]]; then
         trail_log="trail.log"
     fi    
-    if pgrep -f "ssh .*$username@$ssh_target" > /dev/null; then
+    if pgrep -f "ssh .*-i $identity.*$username@$ssh_target" > /dev/null; then
         echo "SSH session is already active"
         return 0
     fi
@@ -90,10 +91,13 @@ run_ssh_identity() {
         ssh_options="-o ProxyCommand=\"ncat --proxy-type socks5 --proxy $proxy_target:$proxy_port  %h %p\" $ssh_options"
     fi
     local command="$1"
+    local ssh_command="ssh -v -i $identity $ssh_options -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no $username@$ssh_target -p $ssh_port"
     if [[ -z "$command" ]]; then
-        eval "ssh -i $identity $ssh_options -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no $username@$ssh_target -p $ssh_port" | tee >(remove_color_to_log >> "$log_dir/ssh_trail_$ssh_target.log")
+        echo "$ssh_command"
+        eval "$ssh_command" | tee >(remove_color_to_log >> "$log_dir/ssh_trail_$ssh_target.log")
     else
-        eval "ssh -i $identity $ssh_options -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no $username@$ssh_target -p $ssh_port \"$command\"" | tee >(remove_color_to_log >> "$log_dir/ssh_trail_$ssh_target.log")
+        echo "$ssh_command \"$command\""
+        eval "$ssh_command \"$command\"" | tee >(remove_color_to_log >> "$log_dir/ssh_trail_$ssh_target.log")
     fi
 
 }

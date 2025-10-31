@@ -20,6 +20,7 @@ get_powershell_search_commands() {
     echo 'Get-ChildItem -Recurse -ErrorAction SilentlyContinue | Select-String -Pattern "^reg"'    
     get_powershell_services_command
     get_powershell_scheduled_tasks_command
+    get_psconsole_history
 
 }
 

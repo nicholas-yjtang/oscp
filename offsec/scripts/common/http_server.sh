@@ -19,7 +19,7 @@ start_http_server() {
         return 1
     fi
     echo "Starting HTTP server on port $http_port"
-    python3 -m http.server "$http_port" | tee -a "$trail_log" 2>&1 &
+    python3 -m http.server "$http_port" 2>&1 | tee -a "$log_dir/http.log" &
 }
 
 stop_http_server() {
@@ -50,7 +50,8 @@ debug: true
 EOF
     echo "Starting WebDAV server on port $http_port"
     docker run -d -p "$http_port":"$http_port" -v "$(pwd)/config.yml:/config.yml:ro" -v "$(pwd):/data" hacdias/webdav:latest -c /config.yml
-
+    docker_id=$(docker ps | grep hacdias/webdav | awk '{print $1}')
+    docker logs -f "$docker_id" 2>&1 | tee >(remove_color_to_log >> $log_dir/webdav.log) &
 }
 
 stop_webdav_server(){
@@ -61,6 +62,21 @@ stop_webdav_server(){
         docker stop "$container_id"
     fi
 
+}
+
+start_php_server() {
+    if [ -z "$http_port" ]; then
+        http_port=80
+        echo "Going to use default HTTP port $http_port"
+    fi
+    if [ -z "$http_ip" ]; then
+        http_ip=$(get_host_ip)
+    fi      
+    docker run -d -p "$http_port":"$http_port" -v "$(pwd):/var/www/html" php:8-apache
+}
+
+stop_php_server() {
+    docker ps -f ancestor=php:8-apache --format "{{.ID}}" | xargs -r docker stop
 }
 
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then

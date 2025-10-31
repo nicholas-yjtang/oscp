@@ -9,17 +9,18 @@ perform_full_setup() {
     echo "ip: $ip"
 }
 
-if [[ -z "$1" ]]; then
+input=$1
+if [[ -z "$input" ]]; then
     echo "Warning! No argument provided. Please provide ending ip or ip address"
-    echo "Your variable ip might not be set correctly."
-    return 1
+    input=1
+    echo "Going to use a temporary value of $input"
 fi
 
-if [[ "$1" =~ ^[0-9]+$ ]]; then
-    ending_ip="$1"
+if [[ "$input" =~ ^[0-9]+$ ]]; then
+    ending_ip="$input"
 else
-    if [[ "$1" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-        ip="$1"
+    if [[ "$input" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        ip="$input"
     else
         echo "Warning! Invalid argument. Please provide a valid IP address or ending octet."
         return 1

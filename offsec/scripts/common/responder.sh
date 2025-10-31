@@ -8,7 +8,7 @@ start_responder() {
     if [[ -z "$responder_ip" ]]; then
         responder_ip=$(get_host_ip)
     fi
-    if pgrep -f "responder -I tun0"; then
+    if pgrep -f "Responder.py -I tun0"; then
         echo "Responder is already running."
         return 1
     fi
@@ -16,9 +16,9 @@ start_responder() {
 }
 
 stop_responder() {
-    if pgrep -f "responder -I tun0"; then
+    if pgrep -f "Responder.py -I tun0"; then
         echo "Stopping Responder..."
-        sudo pkill -f "responder -I tun0"
+        sudo pkill -f "Responder.py -I tun0"
     else
         echo "No Responder is running."
     fi

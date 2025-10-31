@@ -88,3 +88,26 @@ stop_tcpdump() {
         echo "No tcpdump process found."
     fi
 }
+
+is_port_connected() {
+    local port="$1"
+    if [[ -z "$port" ]]; then
+        echo "No port specified."
+        return 1
+    fi
+    local result=""
+    result=$(ss -tuln | grep ":${port} ")
+    if [[ -n "$result" ]]; then
+        echo "true"
+        return 0
+    else
+        result=$(ss -tuno | grep ":${port} ")
+        if [[ -n "$result" ]]; then
+            echo "true"
+            return 0
+        else
+            echo "false"
+            return 1
+        fi
+    fi
+}

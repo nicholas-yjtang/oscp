@@ -25,6 +25,15 @@ convert_zip_to_hashcat() {
     ./zip2hashcat $target_zip > $hash_file
 }
 
+hashcat_generic_kdf() {
+    if [[ -z "$hash_file" ]]; then
+        hash_file="hashes.kdf"
+    else
+        echo "Using provided hash file: $hash_file"
+    fi
+    hash_mode=10900  # PBKDF2-HMAC-SHA256 hash mode
+    hashcat_generic
+}
 
 hashcat_zip() {
 

