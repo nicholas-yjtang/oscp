@@ -1,13 +1,14 @@
 #!/bin/bash
 SCRIPTDIR=$(dirname "${BASH_SOURCE[0]}")
 
-smb_enumeration() {
+smb_enumerate() {
     if [[ -z $target_ip ]]; then
         target_ip=$ip
         echo "Target IP is not set, using $target_ip"        
     fi
     if [[ ! -f "log/enum4linux_$target_ip.log" ]]; then
         enum4linux $target_ip | tee -a "log/enum4linux_$target_ip.log"
+        nmap -p 139,445 --script=smb-enum*,smb-os*,smb-vuln* $target_ip -oN "log/nmap_smb_enum_$target_ip.log"
     fi
 }
 

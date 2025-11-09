@@ -255,3 +255,14 @@ get_netsh_command() {
     echo "netsh interface portproxy delete v4tov4 listenport=$local_port listenaddress=$local_ip"
 
 }
+
+create_ssh_keys() {
+    if [[ -f "id_ed25519" ]]; then
+        echo "SSH key id_ed25519 already exists, skipping generation."
+        return
+    fi
+    ssh-keygen -t ed25519 -f id_ed25519 -N "" 
+    cat id_ed25519.pub > authorized_keys
+    chmod 600 authorized_keys
+
+}

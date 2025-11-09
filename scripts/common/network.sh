@@ -89,25 +89,33 @@ stop_tcpdump() {
     fi
 }
 
-is_port_connected() {
+is_port_listening() {
     local port="$1"
     if [[ -z "$port" ]]; then
         echo "No port specified."
         return 1
     fi
-    local result=""
-    result=$(ss -tuln | grep ":${port} ")
-    if [[ -n "$result" ]]; then
-        echo "true"
+    if ss -tuln | grep ":${port} " > /dev/null; then
+        echo "Port $port is listening."
         return 0
     else
-        result=$(ss -tuno | grep ":${port} ")
-        if [[ -n "$result" ]]; then
-            echo "true"
+        echo "Port $port is not listening."
+        return 1
+    fi
+}
+
+is_port_connected() {
+    local port="$1"
+    if is_port_listening "$port"; then
+        if ss -tuno | grep ":${port} " > /dev/null; then
+            echo "Port $port is connected."
             return 0
         else
-            echo "false"
+            echo "Port $port is not connected."
             return 1
         fi
+    else
+        echo "Port $port is not listening."
+        return 1
     fi
 }

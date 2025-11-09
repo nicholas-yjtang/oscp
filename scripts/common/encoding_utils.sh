@@ -6,7 +6,7 @@ encode_bash_payload() {
     payload="echo $payload|base64 -d"
     payload="\$($payload);"
     encode_space
-    if [[ ! -z $return_minimal ]] && [[ $return_minimal == true ]]; then
+    if [[ ! -z $encoding_type ]] && [[ $encoding_type == "minimal" ]]; then
         echo "$payload"
         return 0
     fi
@@ -19,7 +19,7 @@ encode_python_payload() {
     local payload="$1"
     payload=$(encode_base64 "$payload")
     payload="import base64,os;os.system(base64.b64decode(\\\"$payload\\\"))"
-    if [[ ! -z $return_minimal ]] && [[ $return_minimal == true ]]; then
+    if [[ ! -z $encoding_type ]] && [[ $encoding_type == "minimal" ]]; then
         echo "$payload"
         return 0
     fi
@@ -41,7 +41,7 @@ encode_perl_payload() {
     payload=$(perl -e "print(unpack('H*',\"$payload\"))")
     local payload_length=${#payload}
     payload="system(pack(qq,H$payload_length,,qq,$payload,))"
-    if [[ ! -z $return_minimal ]] && [[ $return_minimal == true ]]; then
+    if [[ ! -z $encoding_type ]] && [[ $encoding_type == "minimal" ]]; then
         echo "$payload"
         return 0
     fi

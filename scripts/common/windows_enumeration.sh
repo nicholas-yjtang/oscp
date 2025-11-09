@@ -9,6 +9,9 @@ download_winPEAS () {
     generate_windows_download "winPEASx64.exe"
 }
 
+download_winpeas () {
+    download_winPEAS
+}
 
 get_powershell_search_commands() {
     echo 'Get-ChildItem -Path C:\ -Recurse -Force -ErrorAction SilentlyContinue -Include "*.txt","*.log","*.xml","*.ini" | Where-Object { $_.FullName -notmatch "microsoft|windows" } | ForEach-Object { "$($_.Directory.FullName)\$($_.Name)"}'
@@ -27,6 +30,7 @@ get_powershell_search_commands() {
 get_powershell_services_command(){
     echo 'Get-Service'
     echo 'Get-WmiObject win32_service | Select-Object Name, PathName'
+    echo 'Get-WmiObject Win32_Service | Select-Object Name, DisplayName, StartName, State | Format-Table -AutoSize'
 }
 
 get_command_search_commands() {

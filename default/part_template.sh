@@ -2,6 +2,9 @@
 
 run_part_template() {
     echo "Running part_template"
+    ip=$part_template_ip
+    nmap_tcp
+    snmp_enumerate 
 }
 
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then

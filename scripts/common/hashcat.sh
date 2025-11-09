@@ -287,9 +287,16 @@ hashcat_generic() {
         echo "Hash mode must be set before running hashcat."
         return 1
     fi
+    if [[ ! -z $enable_hashcat_rules ]] && [[ $enable_hashcat_rules == "false" ]]; then
+        hashcat_rule=""
+    fi
+    local hashcat_rule_option=""
+    if [[ ! -z "$hashcat_rule" ]]; then
+        hashcat_rule_option="-r $hashcat_rule"
+    fi
     echo "$hash_file found, running hashcat for hash mode $hash_mode"
     sudo dos2unix "$hash_file"
-    local cmd="hashcat -m $hash_mode $hash_file $hashcat_wordlist -r $hashcat_rule --force"
+    local cmd="hashcat -m $hash_mode $hash_file $hashcat_wordlist $hashcat_rule_option --force"
     if use_host_for_cracking; then
         scp "$hash_file" "$host_username@$host_computername:~/$hash_file"
         ssh "$host_username@$host_computername" "$cmd"

