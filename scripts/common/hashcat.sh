@@ -25,6 +25,27 @@ convert_zip_to_hashcat() {
     ./zip2hashcat $target_zip > $hash_file
 }
 
+convert_pdf_to_hashcat() {
+    if [[ -z $target_pdf ]]; then
+        echo "Please set a target_pdf file"
+        return 1
+    fi
+    if [[ -z "$hash_file" ]]; then
+        echo "Please set a hash_file"
+        return 1
+    fi
+
+    local url="https://github.com/sighook/pdf2hashcat/archive/refs/heads/master.zip"
+    if [[ ! -d pdf2hashcat ]]; then
+        echo "Directory pdf2hashcat-master does not exist."
+        wget "$url" -O pdf2hashcat.zip
+        unzip pdf2hashcat.zip
+        mv pdf2hashcat-master pdf2hashcat
+    fi
+    cp pdf2hashcat/pdf2hashcat.py .
+    python3 pdf2hashcat.py "$target_pdf" > "$hash_file"
+}
+    
 hashcat_generic_kdf() {
     if [[ -z "$hash_file" ]]; then
         hash_file="hashes.kdf"
@@ -33,6 +54,39 @@ hashcat_generic_kdf() {
     fi
     hash_mode=10900  # PBKDF2-HMAC-SHA256 hash mode
     hashcat_generic
+}
+
+hashcat_double_md5() {
+    if [[ -z "$hash_file" ]]; then
+        hash_file="hashes.doublemd5"
+    else
+        echo "Using provided hash file: $hash_file"
+    fi
+    hash_mode=2600  # Double MD5 hash mode
+    hashcat_generic
+}
+
+hashcat_apache_md5() {
+    if [[ -z "$hash_file" ]]; then
+        hash_file="hashes.apachemd5"
+    else
+        echo "Using provided hash file: $hash_file"
+    fi
+    hash_mode=1600  # Apache MD5 hash mode
+    hashcat_generic
+}
+
+hashcat_pdf_14_16() {
+
+    if [[ -z "$hash_file" ]]; then
+        hash_file="hashes.pdf"
+        echo "Setting default hash_file to $hash_file"
+    else
+        echo "Using provided hash file: $hash_file"
+    fi
+    hash_mode=10500
+    hashcat_generic
+
 }
 
 hashcat_zip() {
@@ -279,6 +333,9 @@ hashcat_generic() {
     fi
     if [[ -z "$hashcat_rule" ]]; then
         hashcat_rule="/usr/share/hashcat/rules/best64.rule"
+    elif [[ $hashcat_rule == "custom.rule" ]]; then
+        echo "Copying custom hashcat rule to host for cracking"
+        scp "$hashcat_rule" "$host_username@$host_computername:~/$hashcat_rule"
     fi
     if [[ -z "$hashcat_wordlist" ]]; then
         hashcat_wordlist="/usr/share/wordlists/rockyou.txt"

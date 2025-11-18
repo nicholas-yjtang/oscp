@@ -75,10 +75,16 @@ run_xfreerdp() {
             else
                 xfreerdp_options="$xfreerdp_options /sec:nla:off"
             fi
+        elif [[ ! -z $sec_protocol ]]; then
+            if [[ $xfreerdp_version == "2" ]]; then
+                xfreerdp_options="$xfreerdp_options /sec:$sec_protocol"
+            else
+                xfreerdp_options="$xfreerdp_options /sec:$sec_protocol"
+            fi
         fi
         if [[ ! -z "$ntlm_hash" ]]; then
             echo "Using NTLM authentication"
-            xfreerdp_options="$xfreerdp_options /pth:$ntlm_hash"
+            xfreerdp_options="$xfreerdp_options /pth:$ntlm_hash /restricted-admin"
         else
             echo "Using password authentication"
             xfreerdp_options="$xfreerdp_options /p:$password"

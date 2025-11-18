@@ -8,6 +8,13 @@ run_gobuster() {
     local target=$2
     local options=$3
     local target_protocol=$4
+    if [[ ! -z $target_url ]] && [[ -z $1 ]] ; then
+        echo "Target URL is set: $target_url"   
+        target_protocol=$(target_url | cut -d':' -f1)
+        target=$(echo $target_url | cut -d'/' -f3 | cut -d':' -f1)
+        port=$(echo $target_url | cut -d'/' -f3 | cut -d':' -f2)
+    fi
+
     if [[ -z "$target_protocol" ]]; then
         echo "Target protocol is not set, using default protocol http."
         target_protocol="http"
@@ -19,6 +26,12 @@ run_gobuster() {
     if [[ -z "$port" ]]; then
         echo "Port is not set, using default port 80."
         port=80
+    fi
+    local target_option=""
+    if [[ ! -z $target_url ]] && [[ -z $1 ]]; then
+        target_option="-u $target_url"
+    else
+        target_option="-u $target_protocol://$target:$port"
     fi
     if [[ -z $gobuster_wordlist ]]; then
         gobuster_wordlist="/usr/share/wordlists/dirb/common.txt"
@@ -38,8 +51,8 @@ run_gobuster() {
           echo "Using proxychains for Gobuster scan."
           proxy_options="--proxy socks5://$proxy_target:$proxy_port"
     fi
-    gobuster dir $proxy_options -u $target_protocol://$target:$port -w $gobuster_wordlist -x pdf,txt,php,html,docx,jsp,aspx,js $options --no-color --no-progress --quiet -o "$gobuster_log"
-    gobuster dir $proxy_options -u $target_protocol://$target:$port -w $gobuster_wordlist -f $options --no-color --no-progress --quiet | tee >(remove_color_to_log "$gobuster_log")
+    gobuster dir $proxy_options $target_option -w $gobuster_wordlist -x pdf,txt,php,html,docx,jsp,aspx,js $options --no-color --no-progress --quiet -o "$gobuster_log"
+    gobuster dir $proxy_options $target_option -w $gobuster_wordlist -f $options --no-color --no-progress --quiet | tee >(remove_color_to_log "$gobuster_log")
 
 }
 
@@ -79,13 +92,20 @@ run_feroxbuster() {
         echo "$feroxbuster_log already exists, skipping Feroxbuster scan."
         return
     fi
+    if [[ -z $feroxbuster_wordlist ]]; then
+        feroxbuster_wordlist="/usr/share/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt"
+    fi
     local proxy_options=""
     if [[ ! -z $use_proxychain ]] && [[ $use_proxychain == "true" ]]; then
           echo "Using proxychains for Gobuster scan."
           proxy_options="--proxy socks5://$proxy_target:$proxy_port"
-    fi    
+    fi   
+    local feroxbuster_file_extensions_option=""
+    if [[ ! -z $feroxbuster_file_extensions ]]; then
+        feroxbuster_file_extensions_option="-x $feroxbuster_file_extensions"
+    fi
     #-x php,html,js,pdf,docx,json,txt
-    eval feroxbuster -u "$target_protocol://$target""$target_port" -w /usr/share/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt --quiet $feroxbuster_additional_options -o $feroxbuster_log $proxy_options
+    eval feroxbuster -u "$target_protocol://$target""$target_port" -w "$feroxbuster_wordlist"  $feroxbuster_file_extensions_option --quiet $feroxbuster_additional_options -o $feroxbuster_log $proxy_options
 }
 
 run_gobuster_vhost() {

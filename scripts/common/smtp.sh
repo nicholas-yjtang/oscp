@@ -19,3 +19,51 @@ smtp_enumeration() {
         echo "SMTP user enumeration log for $target_ip already exists, skipping enumeration."
     fi
 }
+
+enumerate_smtp_auth() {
+    if [[ -z $target_ip ]]; then
+        echo "Target IP is not set."
+        return 1
+    fi
+    if [[ -z $smtp_client_host ]]; then
+        echo "SMTP client host is not set."
+        return 1
+    fi
+    if [[ -z $smtp_username ]]; then
+        echo "SMTP username is not set."
+        return 1
+    fi
+    if [[ -z $smtp_password ]]; then
+        echo "SMTP password is not set."
+        return 1
+    fi
+    if [[ -z $target_users ]]; then
+        target_users=users.txt
+        if [[ ! -f $target_users ]]; then
+            echo "Target users file $target_users does not exist."
+            return 1
+        fi
+    fi
+    # Enumerate SMTP services
+    sleep_time=0.05
+    echo "Enumerating SMTP services on $target_ip..."
+    {
+        ( 
+        echo "HELO $smtp_client_host" 
+        sleep $sleep_time
+        echo 'AUTH LOGIN'
+        sleep $sleep_time
+        echo -n "$smtp_username" | base64 
+        sleep $sleep_time
+        echo -n "$smtp_password" | base64 
+        sleep $sleep_time
+        echo "MAIL FROM:$smtp_username"
+        sleep $sleep_time
+        while IFS= read -r target_user; do
+            echo "RCPT TO:$target_user"
+            sleep $sleep_time
+        done < $target_users
+        echo 'QUIT'
+        ) | tee >(cat >&2) | telnet $target_ip 25
+    } >> smtp.log 2>&1
+}

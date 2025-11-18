@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package Name="Example Product Name" 
+           Manufacturer="@_xpn_" 
+           Version="0.0.1" 
+           UpgradeCode="12345678-1234-1234-1234-111111111111">
+    
+    <MajorUpgrade DowngradeErrorMessage="A newer version is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+    
+    <StandardDirectory Id="ProgramFilesFolder">
+      <Directory Id="INSTALLFOLDER" Name="ExampleApp">
+        <Component Id="ApplicationFiles">
+          <!-- Add your executable file here -->
+          <File Id="MyExecutable" Source="run_windows.exe" />
+        </Component>
+      </Directory>
+    </StandardDirectory>
+    
+    <Feature Id="ProductFeature" Title="Main Feature" Level="1">
+      <ComponentRef Id="ApplicationFiles" />
+    </Feature>
+    
+    <!-- Property for command line -->
+    <Property Id="CMDLINE" Value="{command}" />
+    
+    <!-- Custom Action to run command -->
+    <CustomAction Id="RunCommand" 
+                  Execute="deferred" 
+                  Directory="INSTALLFOLDER" 
+                  ExeCommand="[CMDLINE]" 
+                  Return="ignore"
+                  Impersonate="no" />
+    
+    <!-- Custom Action to run installed executable -->
+    <CustomAction Id="RunInstalledApp" 
+                  Execute="deferred" 
+                  Directory="INSTALLFOLDER" 
+                  ExeCommand="run_windows.exe" 
+                  Return="ignore"
+                  Impersonate="no" />
+    
+    <InstallExecuteSequence>
+      <Custom Action="RunCommand" After="InstallInitialize" />
+      <Custom Action="RunInstalledApp" After="InstallFiles" />
+    </InstallExecuteSequence>
+    
+  </Package>
+</Wix>

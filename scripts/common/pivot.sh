@@ -275,13 +275,16 @@ configure_proxychains() {
         echo "Proxy port must be set."
         return 1
     fi
+    if [[ -z $proxy_type ]]; then
+        proxy_type="socks5"
+    fi
 
-    configured=$(cat /etc/proxychains4.conf | grep socks5 | grep "$proxy_target" | grep "$proxy_port") 
+    configured=$(cat /etc/proxychains4.conf | grep "$proxy_type" | grep "$proxy_target" | grep "$proxy_port") 
     if [[ -z "$configured" ]]; then
         sudo sed -i -E '/^socks.*/d' /etc/proxychains4.conf
         sudo sed -i -E '/^http.*/d' /etc/proxychains4.conf
         echo "Configuring proxychains for $proxy_target:$proxy_port"
-        echo "socks5 $proxy_target $proxy_port" | sudo tee -a /etc/proxychains4.conf > /dev/null
+        echo "$proxy_type $proxy_target $proxy_port" | sudo tee -a /etc/proxychains4.conf > /dev/null
     else
         echo "Proxychains already configured for $proxy_target:$proxy_port"
     fi

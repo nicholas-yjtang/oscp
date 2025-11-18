@@ -26,12 +26,18 @@ nmap_tcp() {
         echo "$nmap_tcp_log already exists, skipping nmap scan."
         return
     fi
-    nmap -sC -sV -vv $additional_nmap_args -oN $nmap_tcp_log $target_ip
-    nmap -sVC -p- -v -T4 -sT --open $target_ip $additional_nmap_args -oN $nmap_tcp_log --append-output
+    local proxy_option=""
+    if [[ ! -z "$proxy_target" ]] && [[ ! -z "$proxy_port" ]] && [[ -z "$proxy_type" ]]; then
+        proxy_option="--proxies $proxy_type://$proxy_target:$proxy_port"
+    fi
+    nmap -sC -sV -vv $additional_nmap_args -oN $nmap_tcp_log $proxy_option $target_ip
+    nmap -sVC -p- -v -T4 -sT --open $target_ip $additional_nmap_args -oN $nmap_tcp_log $proxy_option --append-output
 }
 
 nmap_tcp_proxychains() {
-    local target_ip=$1
+    if [[ ! -z $1 ]]; then
+        target_ip=$1
+    fi
     if [[ -z "$target_ip" ]]; then
         echo "IP address must be set before running nmap."
         return 1
@@ -45,7 +51,7 @@ nmap_tcp_proxychains() {
         return 1
     fi
     local additional_nmap_args=$2    
-    local nmap_tcp_log="nmap_tcp_$target_ip.log"
+    local nmap_tcp_log="nmap_tcp_proxy_$target_ip.log"
     if [[ ! -z "$additional_nmap_args" ]]; then
         nmap_tcp_log="${nmap_tcp_log%.log}_$additional_nmap_args.log"
     fi
@@ -62,8 +68,7 @@ nmap_tcp_proxychains() {
         return 1
     fi
     echo "Running nmap with proxychains..."
-    sudo proxychains -q nmap -v --open -sT -Pn $additional_nmap_args -oN "$nmap_tcp_log" $target_ip
-    #seq 1 65535 | xargs -P 50 -I port sudp proxychains -q nmap -sVC -p port -T4 -sT --open $target_ip $additional_nmap_args -oN $nmap_tcp_log --append-output
+    proxychains -q nmap -v --open -sT -Pn $additional_nmap_args -oN "$nmap_tcp_log" $target_ip
 
 }
 

