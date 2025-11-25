@@ -33,7 +33,7 @@ generate_windows_shortcut() {
     #target_path=$(escape_sed "$target_path")
     local arguments="$cmd"
     local target_path=""
-    if [[ ! -z $use_icon_location ]]; then
+    if [[ ! -z $use_icon_location ]] && [[ $use_icon_location == "true" ]]; then
         target_path="%WINDIR%"
         arguments=""
         icon_location="\\\\$host_ip\\tools\\nc.ico"

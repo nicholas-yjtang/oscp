@@ -30,7 +30,7 @@ get_responder_ntlm() {
     if [ -f "$responder_txt" ]; then
         ntlm_hash=$(cat "$responder_txt" | grep $user | tail -n 1)
         echo "NTLM hash found: $ntlm_hash for $user"
-        echo "$ntlm_hash" > $user.hash
+        echo "$ntlm_hash" > hashes.$user
     fi   
 }
 

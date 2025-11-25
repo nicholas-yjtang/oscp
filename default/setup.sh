@@ -36,3 +36,5 @@ source $COMMONDIR/metasploit.sh
 source $COMMONDIR/smtp.sh
 source $COMMONDIR/smb.sh
 source $COMMONDIR/ftp.sh
+source $COMMONDIR/kerbrute.sh
+source $COMMONDIR/ldap.sh

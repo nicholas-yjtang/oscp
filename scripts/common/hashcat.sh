@@ -292,6 +292,11 @@ hashcat_php_bcrypt() {
         echo "Using provided hash file: $hash_file"
     fi    
     hash_mode=3200  # bcrypt hash mode
+    hashcat_addition_options="-D 1,2"
+    #bcrypt is hard, so no point with rules
+    if [[ -z "$hashcat_rule" ]]; then
+        enable_hashcat_rules="false"
+    fi    
     hashcat_generic
 }
 
@@ -331,6 +336,9 @@ hashcat_generic() {
         echo "Hash file $hash_file not found or empty"
         return 1
     fi
+    if [[ -z "$hashcat_addition_options" ]]; then
+        echo "No additional hashcat options set."
+    fi
     if [[ -z "$hashcat_rule" ]]; then
         hashcat_rule="/usr/share/hashcat/rules/best64.rule"
     elif [[ $hashcat_rule == "custom.rule" ]]; then
@@ -339,6 +347,9 @@ hashcat_generic() {
     fi
     if [[ -z "$hashcat_wordlist" ]]; then
         hashcat_wordlist="/usr/share/wordlists/rockyou.txt"
+    elif [[ $hashcat_wordlist == "custom.txt" ]]; then
+        echo "Copying custom hashcat wordlist to host for cracking"
+        scp "$hashcat_wordlist" "$host_username@$host_computername:~/$hashcat_wordlist"
     fi
     if [[ -z "$hash_mode" ]]; then
         echo "Hash mode must be set before running hashcat."
@@ -353,7 +364,7 @@ hashcat_generic() {
     fi
     echo "$hash_file found, running hashcat for hash mode $hash_mode"
     sudo dos2unix "$hash_file"
-    local cmd="hashcat -m $hash_mode $hash_file $hashcat_wordlist $hashcat_rule_option --force"
+    local cmd="hashcat -m $hash_mode $hash_file $hashcat_wordlist $hashcat_rule_option $hashcat_addition_options --force"
     if use_host_for_cracking; then
         scp "$hash_file" "$host_username@$host_computername:~/$hash_file"
         ssh "$host_username@$host_computername" "$cmd"

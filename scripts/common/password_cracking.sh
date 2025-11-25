@@ -209,7 +209,7 @@ run_netexec() {
         echo "Using domain $domain"
     fi
     if [[ ! -z "$password" ]]; then
-        netexec_password_options="-p $password"
+        netexec_password_options="-p '$password'"
         echo "Using $netexec_password_options"
     fi
     if [[ ! -z "$ntlm_hash" ]]; then
@@ -257,6 +257,7 @@ run_keepassxc_cli_command () {
 }
 
 get_ntlm_hashes_from_ntds() {
+
     if [[ -z $target_username ]]; then
         echo "No target username provided"
         return 1
@@ -301,6 +302,70 @@ get_ntlm_hashes_from_ntds() {
     fi
     echo $ntlm_hash > $hash_file
 
+}
+
+
+get_cupp() {
+    local url="https://raw.githubusercontent.com/Mebus/cupp/refs/heads/master/cupp.py"
+    if [[ ! -f cupp.py ]]; then
+        wget $url -O cupp.py
+        chmod +x cupp.py
+    fi
+}
+
+create_password_list() {
+    if [[ -z "$password_input_file" ]]; then
+        password_input_file="passwords_input.txt"
+        echo "No password input file provided, using default $password_input_file"
+
+    fi
+
+    if [[ ! -f "$password_input_file" ]]; then
+        echo "Password input file $password_input_file not found."
+        echo "Creating password input file using defaults"
+        echo "January" > "$password_input_file"
+        echo "February" >> "$password_input_file"
+        echo "March" >> "$password_input_file"
+        echo "April" >> "$password_input_file"
+        echo "May" >> "$password_input_file"
+        echo "June" >> "$password_input_file"
+        echo "July" >> "$password_input_file"
+        echo "August" >> "$password_input_file"
+        echo "September" >> "$password_input_file"
+        echo "October" >> "$password_input_file"
+        echo "November" >> "$password_input_file"
+        echo "December" >> "$password_input_file"
+        echo "Spring" >> "$password_input_file"
+        echo "Summer" >> "$password_input_file"
+        echo "Fall" >> "$password_input_file"
+        echo "Autumn" >> "$password_input_file"
+        echo "Winter" >> "$password_input_file"        
+    fi
+
+    if [[ -z "$password_file" ]]; then
+        password_file="passwords.txt"
+        echo "No password file provided, using default $password_file"
+    fi
+
+    if [[ -z "$password_rules" ]]; then
+        password_rules="password_rules.txt"
+    fi
+    if [[ ! -f "$password_rules" ]]; then
+        echo "Creating default password rules file $password_rules"
+        echo ':' > "$password_rules"
+        echo '$2$0$2$0' >> "$password_rules"
+        echo '$2$0$2$1' >> "$password_rules"
+        echo '$2$0$2$2' >> "$password_rules"
+        echo '$2$0$2$3' >> "$password_rules"
+        echo '$2$0$2$4' >> "$password_rules"
+        echo '$2$0$2$5' >> "$password_rules"
+    fi
+    if [[ ! -f "password_rules_toggle.txt" ]]; then
+        echo "Creating default password toggle rules file password_rules_toggle.txt"
+        echo 'T0' > "password_rules_toggle.txt"
+
+    fi
+    hashcat --stdout "$password_input_file" -r "$password_rules"  -r "password_rules_toggle.txt" | sort -u > "$password_file"
 }
 
 get_ntlm_hashes_from_ntds() {
@@ -464,6 +529,17 @@ decrypt_vnc_password() {
     fi
     local encrypted_hex=$1
     perl $SCRIPTDIR/../perl/vnc_decrypt.pl "$encrypted_hex"
+}
+
+generate_ntlm_hash() {
+    if [[ -z $password ]]; then
+        password=$1
+    fi
+    if [[ -z $password ]]; then
+        echo "Password must be set before generating NTLM hash."
+        return 1
+    fi
+    python -c "import impacket.ntlm; import binascii; from impacket.ntlm import compute_nthash; print(binascii.hexlify(compute_nthash('$password')).decode())"
 }
 
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then

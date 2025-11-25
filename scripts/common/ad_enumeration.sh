@@ -56,6 +56,10 @@ download_psloggedon() {
     echo '.\PsLoggedon.exe;'
 }
 
+download_bloodhound_collector() {
+    download_sharphound
+}
+
 download_sharphound() {
     local sharphound_version=v2.6.7
     local sharphound_url="https://github.com/SpecterOps/SharpHound/releases/expanded_assets/$sharphound_version"
