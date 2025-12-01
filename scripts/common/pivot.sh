@@ -289,7 +289,7 @@ configure_proxychains() {
         proxy_type="socks5"
     fi
 
-    configured=$(cat /etc/proxychains4.conf | grep "$proxy_type" | grep "$proxy_target" | grep "$proxy_port") 
+    configured=$(cat /etc/proxychains4.conf | grep "^$proxy_type" | grep "$proxy_target" | grep "$proxy_port") 
     if [[ -z "$configured" ]]; then
         sudo sed -i -E '/^socks.*/d' /etc/proxychains4.conf
         sudo sed -i -E '/^http.*/d' /etc/proxychains4.conf

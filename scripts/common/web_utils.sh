@@ -22,20 +22,21 @@ extract_hidden_input() {
     local form_content
     if [[ -z "$target_form" ]]; then
         # Get first form
-        form_content=$(echo "$page" | sed -n '/<form[^>]*>/,/<\/form>/p' | head -n -0)
+        form_content=$(echo "$page" | awk '/<form/ { start = 1 } start {print} /<\/form>/ {exit}' )
     else
         # Get specific form by ID or number
         if [[ "$target_form" =~ ^[0-9]+$ ]]; then
             # Target by form number
             form_content=$(echo "$page" | awk -v target="$target_form" '
-                /<form[^>]*>/ { forms++; if(forms==target) start=1 }
+                /<form/ { forms++; if(forms==target) start=1 }
                 start { print }
                 /<\/form>/ { if(start) exit }
             ')
         else
-            # Target by form ID
+            # Target by form ID or name
             form_content=$(echo "$page" | awk -v target="$target_form" '
-                /<form[^>]*id="'$target_form'"[^>]*>/ { start=1 }
+                /<form[^>]*id="'$target_form'"/ { start=1 }
+                /<form[^>]*name="'$target_form'"/ { start=1 }
                 start { print }
                 /<\/form>/ { if(start) exit }
             ')
@@ -62,6 +63,7 @@ get_hidden_inputs() {
         echo "Usage: get_hidden_inputs <url>" >> $trail_log
         return 1
     fi
+    echo $url >> $trail_log
     if [[ -z "$cookie_jar" ]]; then
         cookie_jar="cookie.txt"
     fi
@@ -80,6 +82,8 @@ get_hidden_inputs() {
     if [[ -z "$page" ]]; then
         echo "Failed to fetch the page. Please check the URL." >> $trail_log
         return 1
+    else
+        echo "$page" > temp_page.html
     fi
     extract_hidden_input "$page" "$target_form"
 }
@@ -92,6 +96,10 @@ get_iis_hidden_inputs() {
         target_form="$2"
     fi
     local hidden_inputs=$(get_hidden_inputs "$target_url" "$target_form")
+    if [[ -z "$hidden_inputs" ]]; then
+        echo ""
+        return 0
+    fi
     hidden_inputs=$(echo $hidden_inputs | sed -E 's/^,//')
     hidden_inputs=$(echo $hidden_inputs | sed -E 's/,/ -F /g')
     hidden_inputs="-F $hidden_inputs"
@@ -106,6 +114,10 @@ get_post_hidden_inputs() {
         target_form="$2"
     fi
     local hidden_inputs=$(get_hidden_inputs "$target_url" "$target_form")
+    if [[ -z "$hidden_inputs" ]]; then
+        echo ""
+        return 0
+    fi
     hidden_inputs=$(echo $hidden_inputs | sed -E 's/^,//')
     hidden_inputs=$(echo $hidden_inputs | sed -E 's/,/\&/g')
     echo $hidden_inputs

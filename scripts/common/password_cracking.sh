@@ -221,12 +221,16 @@ run_netexec() {
         proxychain_command="proxychains -q "
         echo "Running netexec with proxychains"
     fi
+    local log_file=""
+    if [[ -z $log_file ]]; then
+        log_file="$log_dir/netexec_$target_ip.log"
+    fi
     if [[ ! -z $run_cmd ]] && [[ "$run_cmd" == "true" ]]; then
         netexec_additional_options+=" -X \"$cmd\""
     fi
     eval_string="${proxychain_command}netexec $netexec_protocol $target_ip $netexec_user_options $netexec_password_options $netexec_additional_options"
     echo "$eval_string"
-    eval "$eval_string"
+    eval "$eval_string" | tee >(remove_color_to_log >> "$log_file")
     #eval ${proxychain_command}netexec $netexec_protocol $target_ip $netexec_user_options $netexec_password_options $netexec_additional_options
 }
 
@@ -237,6 +241,34 @@ trim_rockyou() {
         return 1
     fi
     awk "length(\$0) >= $minimal_characters" /usr/share/wordlists/rockyou.txt > rockyou_${minimal_characters}plus.txt
+}
+
+run_simple_brute_list() {
+    if [[ -z $username ]]; then
+        echo "Username list must be provided for simple brute force."
+        return 1
+    fi
+    if [[ ! -f $username ]]; then
+        echo "Username file $username not found."
+        return 1
+    fi
+    while read -r user; do
+        run_simple_brute "$user"
+    done < "$username"
+}
+
+run_simple_brute() {
+    local username=$1
+    if [[ -z "$username" ]]; then
+        echo "Username must be provided for simple brute force."
+        return 1
+    fi
+    echo $username > temp_passwords.txt
+    echo $username | rev >> temp_passwords.txt
+    echo password >> temp_passwords.txt
+    password=temp_passwords.txt
+    run_netexec
+
 }
 
 perform_kdbx_recovery() {

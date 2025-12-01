@@ -1,12 +1,31 @@
 #!/bin/bash
 
 run_wpscan() {
-    local url="$1"
-    if [[ -z "$url" ]]; then
+    if [[ ! -z $1 ]]; then
+        target_url="$1"
+    fi
+    if [[ -z "$target_url" ]]; then
         echo "Usage: run_wpscan <url>"
         return 1
     fi
-    local wpscan_log="${url}_wpscan.log"
+    if [[ $target_url == *https* ]]; then
+        wpscan_additional_options+=" --disable_tls_checks"
+
+    fi
+    if [[ -z $enumerate_wpscan ]]; then
+        enumerate_wpscan="true"
+    fi
+    if [[ -z $enumeration_option ]]; then
+        enumeration_option="ap --plugins-detection aggressive"
+    fi
+    local wpscan_log="wpscan_$(echo $target_url | sed 's/[:\/]/_/g')"
+    if [[ ! -z "$enumeration_option" ]]; then
+        wpscan_log="${wpscan_log}_${enumeration_option// /_}"
+    fi
+    if [[ ! -z "$wpscan_additional_options" ]]; then
+        wpscan_log="${wpscan_log}_$(echo $wpscan_additional_options | sed 's/ /_/g' | sed 's/[:\/]/_/g')"
+    fi
+    wpscan_log="${wpscan_log}.log"
     if [[ ! -z "$log_dir" ]]; then
         wpscan_log="$log_dir/$wpscan_log"
     fi
@@ -20,9 +39,34 @@ run_wpscan() {
         echo "Using proxychains for WPScan."
     fi
     echo "Running WPScan..."
-    local wpsscan_cmd="${proxy_command}wpscan --no-update --url http://$url --enumerate ap --plugins-detection aggressive"
+    local wpscan_enumeration_option=""
+    if [[ $enumerate_wpscan == "true" ]]; then
+        wpscan_enumeration_option="--enumerate $enumeration_option"
+    fi
+    local wpsscan_cmd="${proxy_command}wpscan --no-update --url $target_url $wpscan_enumeration_option $wpscan_additional_options"
     echo $wpsscan_cmd
     eval $wpsscan_cmd | tee >(remove_color_to_log >> $wpscan_log)
+}
+
+enumerate_wp_users() {
+    local target_host="$1"
+    if [[ -z "$target_host" ]]; then
+        echo "Usage: generate_wp_users <target_host>"
+        return 1
+    fi
+    enumeration_option="u"
+    run_wpscan "$target_host"
+}
+
+brute_force_wp_login() {
+    local target_host="$1"
+    if [[ -z "$target_host" ]]; then
+        echo "Usage: brute_force_wp_login <target_host>"
+        return 1
+    fi
+    enumerate_wpscan="false"
+    wpscan_additional_options="--passwords /usr/share/wordlists/rockyou.txt"
+    run_wpscan "$target_host"
 }
 
 login_wp() {
