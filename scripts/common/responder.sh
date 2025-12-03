@@ -26,7 +26,10 @@ stop_responder() {
 
 get_responder_ntlm() {
     local user=$1
-    local responder_txt="/usr/share/responder/logs/SMB-NTLMv2-SSP-$ip.txt"
+    if [[ -z "$response_type" ]]; then
+        response_type="SMB-NTLMv2-SSP"
+    fi
+    local responder_txt="/usr/share/responder/logs/$response_type-$ip.txt"
     if [ -f "$responder_txt" ]; then
         ntlm_hash=$(cat "$responder_txt" | grep $user | tail -n 1)
         echo "NTLM hash found: $ntlm_hash for $user"

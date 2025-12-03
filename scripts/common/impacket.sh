@@ -39,7 +39,7 @@ run_impacket() {
     if [[ -z "$dc_host" ]] && [[ -z "$dc_ip" ]]; then
         echo "No DC host or IP specified. Make sure this is your intention." 
     fi
-    local target=$username
+    local target="'$username'"
     if [[ ! -z "$password" ]]; then
         target="$target:'$password'"
     fi
@@ -68,7 +68,7 @@ run_impacket() {
         if [[ $ntlm_hash == *":"* ]]; then
             hashes_option="-hashes $ntlm_hash"
         else
-            hashes_option="-hashes "$(append_lm_hash $ntlm_hash)
+            hashes_option="-hashes :$ntlm_hash"
         fi
         kerberos_option=""
     fi

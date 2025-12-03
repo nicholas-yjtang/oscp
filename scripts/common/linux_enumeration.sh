@@ -42,6 +42,8 @@ download_linpeas() {
         wget https://github.com$linpeas_link
     fi
     echo "wget http://$http_ip:$http_port/linpeas.sh -O linpeas.sh"
+    echo "chmod +x linpeas.sh"
+    echo "./linpeas.sh"
 }
 
 get_run_linpeas_commands() {
@@ -91,4 +93,6 @@ download_pspy() {
         wget "$url" -O "$pspy_file"
     fi
     generate_linux_download "$pspy_file"
+    echo "chmod +x $pspy_file"
+    echo "./$pspy_file"
 }

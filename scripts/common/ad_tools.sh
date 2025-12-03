@@ -364,7 +364,8 @@ run_evil_winrm() {
     else
         password_option="-p '$password'"        
     fi
-    if pgrep -f "evil-winrm -i $target_ip -u $username"; then
+    local test_username=$(echo "$username" | sed -E 's/([$])/\\\1/g')
+    if pgrep -f "evil-winrm -i $target_ip -u $test_username"; then
         echo "Evil-WinRM is already running for $target_ip, $username"
         return 0
     fi
