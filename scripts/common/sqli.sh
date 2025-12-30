@@ -21,6 +21,10 @@ get_mysql_commands() {
     echo 'SHOW TABLES;'
     echo 'SELECT * FROM users LIMIT 3;'
     echo 'SELECT * FROM information_schema.columns;'
+    echo 'SELECT schema_name from information_schema.schemata;'
+    echo 'SELECT table_name FROM information_schema.tables WHERE table_schema = DATABASE();'
+    echo 'SELECT column_name FROM information_schema.columns WHERE table_schema = DATABASE();'
+    echo 'SELECT User, Password, authentication_string FROM mysql.user;'
 
 }
 

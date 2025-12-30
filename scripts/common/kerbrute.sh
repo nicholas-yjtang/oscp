@@ -49,21 +49,39 @@ run_kerbrute() {
         return 0
     fi
     if [[ -z $kerbrute_options ]]; then
+        kerbrute_options=userenum
+    fi
+    if [[ ! -z $kerbrute_options ]]; then
         if [[ $kerbrute_command == "userenum" ]]; then        
             if  [[ -f usernames.txt ]]; then
                 kerbrute_options="usernames.txt"
             else
                 kerbrute_options="/usr/share/seclists/Usernames/xato-net-10-million-usernames.txt"
             fi
+        elif [[ $kerbrute_command == "bruteuser" ]]; then
+            if [[ -z "$username" ]]; then
+                echo "username is not set for bruteuser command"
+                return 1
+            fi
+            echo "Using username: $username for bruteuser command"
+            if  [[ -f passwords.txt ]]; then
+                kerbrute_options="passwords.txt $username"
+            else
+                kerbrute_options="/usr/share/seclists/Passwords/xato-net-10-million-passwords.txt $username"
+            fi
+        else
+            echo "kerbrute options are not set"
+            return 1
         fi
     fi
-    if [[ -f "$log_dir/kerbrute_$dc_ip.log" ]]; then
+    local log_file="$log_dir/kerbrute_${dc_ip}_${kerbrute_command}.log"
+    if [[ -f "$log_file" ]]; then
         echo "kerbrute log already exists for $dc_ip, skipping test."
         return 0
     fi
     local command_string="./kerbrute_linux_amd64 $kerbrute_command -d $domain --dc $dc_ip $kerbrute_options"
     echo $command_string
-    eval "$command_string" |  tee >(remove_color_to_log >> "$log_dir/kerbrute_$dc_ip.log")
+    eval "$command_string" |  tee >(remove_color_to_log >> "$log_file")
 }
 
 generate_names() {

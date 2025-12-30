@@ -40,6 +40,11 @@ urlencode_noslash() {
 }
 
 urlencode() {
+  echo -n "$@" \
+  | python -c "import sys, urllib.parse; print(urllib.parse.quote(sys.stdin.read(), safe=''))"
+}
+
+urlencode_() {
     echo "$@" \
     | sed \
         -e 's/%/%25/g' \
@@ -69,8 +74,8 @@ urlencode() {
         -e 's/~/%7E/g' \
         -e 's/=/%3D/g' \
         -e 's/ /+/g' \
-        -e 's/\n/%0A/g' \
-        -e 's/\r/%0D/g' 
+        | sed ':a;N;$!ba;s/\n/%0A/g' \
+        | sed 's/\r/%0D/g'
 }
 
 #-e 's/\./%2e/g' \

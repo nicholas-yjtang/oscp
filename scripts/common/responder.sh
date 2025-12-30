@@ -24,6 +24,10 @@ stop_responder() {
     fi
 }
 
+get_ntlm_hash_from_responder() {
+    get_responder_ntlm "$1"
+}
+
 get_responder_ntlm() {
     local user=$1
     if [[ -z "$response_type" ]]; then
@@ -34,6 +38,7 @@ get_responder_ntlm() {
         ntlm_hash=$(cat "$responder_txt" | grep $user | tail -n 1)
         echo "NTLM hash found: $ntlm_hash for $user"
         echo "$ntlm_hash" > hashes.$user
+        hash_file="hashes.$user"
     fi   
 }
 

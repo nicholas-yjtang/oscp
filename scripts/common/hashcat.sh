@@ -88,6 +88,17 @@ hashcat_pdf_14_16() {
     hashcat_generic
 
 }
+hashcat_pkzip() {
+
+    if [[ -z "$hash_file" ]]; then
+        hash_file=hashes.pkzip
+        echo "Setting default hash_file to $hash_file"
+    else
+        echo "Using provided hash file: $hash_file"
+    fi
+    hash_mode=17200
+    hashcat_generic
+}
 
 hashcat_zip() {
 
@@ -325,6 +336,16 @@ hashcat_ssh_password() {
     if [[ -z "$hash_mode" ]]; then
         hash_mode=22921
     fi
+    hashcat_generic
+}
+
+hashcat_mysql5() {
+    if [[ -z "$hash_file" ]]; then
+        hash_file="hashes.mysql5"
+    else
+        echo "Using provided hash file: $hash_file"
+    fi    
+    hash_mode=300  # MySQL5 hash mode
     hashcat_generic
 }
 

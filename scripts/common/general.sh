@@ -47,6 +47,10 @@ generate_iwr() {
         echo "HTTP IP address and port must be set before running certutil."
         return 1
     fi
+    if [[ ! -z $force_download ]] && [[ "$force_download" == "true" ]]; then
+        echo "iwr -uri http://$http_ip:$http_port/$file -OutFile $outfile;"
+        return 0
+    fi
     echo "if (-not (Test-Path $outfile)) { iwr -uri http://$http_ip:$http_port/$file -OutFile $outfile; };"
 }
 

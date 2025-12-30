@@ -39,3 +39,4 @@ source $COMMONDIR/ftp.sh
 source $COMMONDIR/kerbrute.sh
 source $COMMONDIR/ldap.sh
 source $COMMONDIR/joomla.sh
+source $COMMONDIR/hydra.sh

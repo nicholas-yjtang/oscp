@@ -8,12 +8,6 @@ run_gobuster() {
     local target=$2
     local options=$3
     local target_protocol=$4
-    if [[ ! -z $target_url ]] && [[ -z $1 ]] ; then
-        echo "Target URL is set: $target_url"   
-        target_protocol=$(target_url | cut -d':' -f1)
-        target=$(echo $target_url | cut -d'/' -f3 | cut -d':' -f1)
-        port=$(echo $target_url | cut -d'/' -f3 | cut -d':' -f2)
-    fi
 
     if [[ -z "$target_protocol" ]]; then
         echo "Target protocol is not set, using default protocol http."
@@ -32,12 +26,25 @@ run_gobuster() {
         target_option="-u $target_url"
     else
         target_option="-u $target_protocol://$target:$port"
+        target_url="$target_protocol://$target:$port"
     fi
     if [[ -z $gobuster_wordlist ]]; then
         gobuster_wordlist="/usr/share/wordlists/dirb/common.txt"
     fi
-    local gobuster_log="gobuster_$target""_$port"$options'.log'
-    gobuster_log=$(echo "$gobuster_log" | sed -E 's/\ /_/g')
+    if [[ ! -f $gobuster_wordlist ]]; then
+        echo "Gobuster wordlist $gobuster_wordlist does not exist. Exiting."
+        return 1
+    fi
+    local authentication_options=""
+    if [[ -z $username ]] && [[ -z $password ]]; then
+        echo "No authentication credentials provided for Gobuster."
+    else
+        authentication_options="-U $username -P $password"
+        echo "Using authentication credentials for Gobuster."
+        options+=" $authentication_options"
+    fi
+    local gobuster_log="gobuster_${target_url}${options}.log"
+    gobuster_log=$(echo "$gobuster_log" | sed -E 's/\ /_/g' | sed -E 's/:/_/g' | sed -E 's/\//_/g' | sed -E 's/"//g' | sed -E "s/'//g")
     echo "Using Gobuster log file: $gobuster_log"
     if [[ -d "$log_dir" ]]; then
         gobuster_log="$log_dir/$gobuster_log"
@@ -51,7 +58,7 @@ run_gobuster() {
           echo "Using proxychains for Gobuster scan."
           proxy_options="--proxy socks5://$proxy_target:$proxy_port"
     fi
-    gobuster dir $proxy_options $target_option -w $gobuster_wordlist -x pdf,txt,php,html,docx,jsp,aspx,js $options --no-color --no-progress --quiet -o "$gobuster_log"
+    gobuster dir $proxy_options $target_option -w $gobuster_wordlist -x pdf,txt,php,html,docx,jsp,aspx,js,zip $options --no-color --no-progress --quiet -o "$gobuster_log"
     gobuster dir $proxy_options $target_option -w $gobuster_wordlist -f $options --no-color --no-progress --quiet | tee >(remove_color_to_log "$gobuster_log")
 
 }
@@ -74,15 +81,32 @@ run_feroxbuster() {
         port=80
     else
         target_port=":$port"
-    fi        
-    
-    local feroxbuster_log="feroxbuster_$target""_$port"
+    fi
+    local feroxbuster_target_url=""
+    if [[ ! -z $target_url ]] && [[ -z $1 ]] ; then
+        feroxbuster_target_url="$target_url"
+
+    else
+        feroxbuster_target_url="$target_protocol://$target$target_port"
+    fi
+    if [[ ! -z $username ]] && [[ ! -z $password ]]; then
+        feroxbuster_additional_options+=" -H 'Authorization: Basic $(echo -n "$username:$password" | base64 -w 0)' "
+        echo "Using authentication credentials for Feroxbuster."
+    fi
+    #-x php,html,js,pdf,docx,json,txt
+    if [[ ! -z $feroxbuster_file_extensions ]]; then
+        feroxbuster_additional_options+=" -x $feroxbuster_file_extensions"
+    fi
+
+    local feroxbuster_log="feroxbuster_$feroxbuster_target_url"
     if [[ ! -z "$feroxbuster_additional_options" ]]; then
         feroxbuster_log="${feroxbuster_log}_${feroxbuster_additional_options}"
-        feroxbuster_log=$(echo "$feroxbuster_log" | sed -E 's/"//g' | sed -E 's/:/_/g' | sed -E 's/ /_/g')
-        echo $feroxbuster_log
+        #feroxbuster_log=$(echo "$feroxbuster_log" | sed -E 's/"//g' | sed -E 's/:/_/g' | sed -E 's/ /_/g')
+        #echo $feroxbuster_log
     fi
+    feroxbuster_log=$(echo "$feroxbuster_log" | sed -E 's/:/_/g' | sed -E 's/\//_/g' | sed -E 's/"//g' | sed -E 's/ /_/g' | sed -E "s/'//g")
     feroxbuster_log="$feroxbuster_log.log"
+    echo "Using Feroxbuster log file: $feroxbuster_log"
     
     if [[ -d "$log_dir" ]]; then
         feroxbuster_log="$log_dir/$feroxbuster_log"
@@ -100,12 +124,9 @@ run_feroxbuster() {
           echo "Using proxychains for Gobuster scan."
           proxy_options="--proxy socks5://$proxy_target:$proxy_port"
     fi   
-    local feroxbuster_file_extensions_option=""
-    if [[ ! -z $feroxbuster_file_extensions ]]; then
-        feroxbuster_file_extensions_option="-x $feroxbuster_file_extensions"
-    fi
-    #-x php,html,js,pdf,docx,json,txt
-    eval feroxbuster -u "$target_protocol://$target""$target_port" -w "$feroxbuster_wordlist"  $feroxbuster_file_extensions_option --quiet $feroxbuster_additional_options -o $feroxbuster_log $proxy_options
+    cmd_string="feroxbuster -u $feroxbuster_target_url -w $feroxbuster_wordlist --quiet $feroxbuster_additional_options -o $feroxbuster_log $proxy_options"
+    echo "Feroxbuster command: $cmd_string"
+    eval "$cmd_string"
 }
 
 run_gobuster_vhost() {

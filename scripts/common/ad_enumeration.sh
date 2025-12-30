@@ -263,3 +263,43 @@ upload_bloodhound_data() {
         return 1
     fi
 }
+
+run_bloodhound_python() {
+    
+    if [[ -z "$dc_host" ]]; then
+        echo "Domain controller host is not set."
+        return 1
+    fi
+    if [[ -z "$dc_ip" ]]; then
+        echo "Domain controller IP is not set."
+        return 1
+    fi
+    if [[ -z "$ns_ip" ]]; then
+        ns_ip="$dc_ip"
+        echo "Using DC IP as nameserver IP: $ns_ip"
+    fi
+    if [[ -z "$username" ]]; then
+        echo "Username is not set."
+        return 1
+    fi
+    if [[ -z "$password" ]]; then
+        echo "Password is not set"
+        return 1
+    fi
+    if [[ -z "$domain" ]]; then
+        echo "Domain is not set."
+        return 1
+    fi   
+    PATTERN="*_bloodhound.zip"
+    for file in $PATTERN; do
+        if [[ -e "$file" ]]; then
+            echo "$file already exists, skipping BloodHound data collection."
+            return 0
+        else
+            echo "No existing BloodHound zip files found, proceeding with data collection."
+            break
+        fi
+    done
+    python -m bloodhound -dc $dc_host -ns $ns_ip -u $username -p $password -d $domain -c All --zip
+    
+}
