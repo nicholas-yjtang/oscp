@@ -40,3 +40,4 @@ source $COMMONDIR/kerbrute.sh
 source $COMMONDIR/ldap.sh
 source $COMMONDIR/joomla.sh
 source $COMMONDIR/hydra.sh
+source $COMMONDIR/rmi.sh

