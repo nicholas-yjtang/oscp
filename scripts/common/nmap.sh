@@ -30,8 +30,12 @@ nmap_tcp() {
     if [[ ! -z "$proxy_target" ]] && [[ ! -z "$proxy_port" ]] && [[ -z "$proxy_type" ]]; then
         proxy_option="--proxies $proxy_type://$proxy_target:$proxy_port"
     fi
-    nmap -sC -sV -vv $additional_nmap_args -oN $nmap_tcp_log $proxy_option $target_ip
-    nmap -sVC -p- -v -T4 -sT --open $target_ip $additional_nmap_args -oN $nmap_tcp_log $proxy_option --append-output
+    local nmap_command="nmap -sC -sV -vv $additional_nmap_args -oN $nmap_tcp_log $proxy_option $target_ip"
+    echo $nmap_command
+    eval $nmap_command
+    nmap_command="nmap -sVC -p- -v -T4 -sT --open $target_ip $additional_nmap_args -oN $nmap_tcp_log $proxy_option --append-output"
+    echo $nmap_command
+    eval $nmap_command
 }
 
 nmap_tcp_proxychains() {
@@ -68,7 +72,9 @@ nmap_tcp_proxychains() {
         return 1
     fi
     echo "Running nmap with proxychains..."
-    proxychains -q nmap -v --open -sT -Pn $additional_nmap_args -oN "$nmap_tcp_log" $target_ip
+    local nmap_command="proxychains -q nmap -v --open -sT -Pn $additional_nmap_args -oN \"$nmap_tcp_log\" $target_ip"
+    echo "$nmap_command"
+    eval $nmap_command
 
 }
 
@@ -91,8 +97,12 @@ nmap_udp() {
         echo "$nmap_udp_log already exists, skipping nmap scan."
         return
     fi
-    sudo nmap -sU -sV -vv -oN $nmap_udp_log $target_ip
-    sudo nmap -sU -p 1-1024 -v $target_ip -oN $nmap_udp_log --append-output
+    local nmap_command="sudo nmap -sU -sV -vv -oN $nmap_udp_log $target_ip"
+    echo $nmap_command
+    eval $nmap_command
+    nmap_command="sudo nmap -sU -p 1-1024 -v $target_ip -oN $nmap_udp_log --append-output"
+    echo $nmap_command
+    eval $nmap_command
 }
 
 map_all() {

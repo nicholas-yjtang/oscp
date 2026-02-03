@@ -3,7 +3,7 @@ SCRIPTDIR=$(dirname "${BASH_SOURCE[0]}")
 source $SCRIPTDIR/encoding_utils.sh
 
 remove_color_to_log() {
-    cat | sed -u -E 's/\x1b\[[0-9;]*[mK]//g' | sed -u -E 's/\x1b\]0;.*\x07//g' | sed -u -E 's/\x1b\[0m//g' | sed -u -E 's/\x1b\[\?[0-9]+[hl]//g' | sed -u -E 's/\x1b\[C\x1b\[C\x1b\[C.*//g' | sed -u -E ':a;s/[^\x08]\x08//g;ta' | sed -u 's/\x07//g' #| sed -u 's/\x1b\[[0-9]*
+    cat | sed -u -E 's/\x1b\[[0-9;]*[mKXCJ]//g' | sed -u -E 's/\x1b\]0;.*\x07//g' | sed -u -E 's/\x1b\[0m//g' | sed -u -E 's/\x1b\[\?[0-9]+[hl]//g' | sed -u -E 's/\x1b\[C\x1b\[C\x1b\[C.*//g' | sed -u -E ':a;s/[^\x08]\x08//g;ta' | sed -u -E 's/\x07//g' | sed -u -E 's/\x1b\[H//g' | sed -u -E 's/\x1b\[[0-9]+;[0-9]+H//g' #| sed -u 's/\x1b\[[0-9]*
 }
 
 escape_sed() {
@@ -178,4 +178,23 @@ find_flag_linux(){
 find_flag_windows_cmd() {
     echo 'hostname;'
     echo 'for /f %i in ('"'"'dir /s /b c:\*local.txt c:\*proof.txt 2^>nul'"'"') do @echo === %i === & @type "%i"'
+}
+
+count_hex() {
+    local file="${1}"
+    if [[ -z $file ]]; then
+        echo "Usage: count_hex <file>"
+        return 1
+    fi
+    if [[ ! -f $file ]]; then
+        echo "File $file does not exist"
+        return 1
+    fi
+    local count=$(grep -o '\\x[0-9a-fA-F][0-9a-fA-F]' "$file" | wc -l)
+    echo "$count"
+}
+
+generate_random_string() {
+    local length=${1:-16}
+    tr -dc 'a-zA-Z0-9' < /dev/urandom | head -c "$length"
 }

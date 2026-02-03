@@ -2,16 +2,22 @@
 SCRIPTDIR=$(dirname "${BASH_SOURCE[0]}")
 
 smb_enumerate() {
+    local command=""
     if [[ -z $target_ip ]]; then
         target_ip=$ip
         echo "Target IP is not set, using $target_ip"        
     fi
-    if [[ ! -f "log/enum4linux_$target_ip.log" ]]; then
-        enum4linux $target_ip | tee -a "log/enum4linux_$target_ip.log"
+    if [[ ! -f "log/enum4linux_$target_ip.log" ]]; then        
+        command="enum4linux $target_ip"
+        echo "$command" | tee -a "$trail_log"
+        eval "$command" | tee -a "log/enum4linux_$target_ip.log"
     fi
     if [[ ! -f "log/nmap_smb_enum_$target_ip.log" ]]; then
         echo "Running nmap SMB enumeration scripts against $target_ip"
-        nmap -p 139,445 --script=smb-enum*,smb-os*,smb-vuln* $target_ip -oN "log/nmap_smb_enum_$target_ip.log"
+        #nmap -p 139,445 --script=smb-enum*,smb-os*,smb-vuln* $target_ip -oN "log/nmap_smb_enum_$target_ip.log"
+        local command="nmap -p 139,445 --script=smb-enum*,smb-os*,smb-vuln* $target_ip -oN \"log/nmap_smb_enum_$target_ip.log\""
+        echo "$command" | tee -a "$trail_log"
+        eval "$command"
     fi
     test_anonymous_smb
 
@@ -23,8 +29,11 @@ check_for_smb311() {
         target_ip=$ip
         echo "Target IP is not set, using $target_ip"        
     fi
-    if [[ ! -f "$log_dir//nmap_smb_cve_2020_0796_$target_ip.log" ]]; then
-        nmap -p445 --script smb-protocols -Pn -n $target_ip | grep -P '\d+\.\d+\.\d+\.\d+|^\|.\s+3.11' | tr '\n' ' ' | replace 'Nmap scan report for' '@' | tr "@" "\n" | grep 3.11 | tr '|' ' ' | tr '_' ' ' | grep -oP '\d+\.\d+\.\d+\.\d+' | tee -a "$log_dir//nmap_smb_cve_2020_0796_$target_ip.log"
+    if [[ ! -f "$log_dir//nmap_smb_cve_2020_0796_$target_ip.log" ]]; then        
+        #nmap -p445 --script smb-protocols -Pn -n $target_ip | grep -P '\d+\.\d+\.\d+\.\d+|^\|.\s+3.11' | tr '\n' ' ' | replace 'Nmap scan report for' '@' | tr "@" "\n" | grep 3.11 | tr '|' ' ' | tr '_' ' ' | grep -oP '\d+\.\d+\.\d+\.\d+' | tee -a "$log_dir//nmap_smb_cve_2020_0796_$target_ip.log"
+        local command="nmap -p445 --script smb-protocols -Pn -n $target_ip"
+        echo "$command"
+        eval "$command" | grep -P '\d+\.\d+\.\d+\.\d+|^\|.\s+3.11' | tr '\n' ' ' | replace 'Nmap scan report for' '@' | tr "@" "\n" | grep 3.11 | tr '|' ' ' | tr '_' ' ' | grep -oP '\d+\.\d+\.\d+\.\d+' | tee -a "$log_dir//nmap_smb_cve_2020_0796_$target_ip.log"
         if [[ $? -ne 0 ]]; then
             echo "No hosts with SMBv3.11 found, " | tee -a "$log_dir//nmap_smb_cve_2020_0796_$target_ip.log"
             return 0
@@ -44,7 +53,12 @@ test_anonymous_smb() {
         local guest=$(netexec smb "$target_ip" -u test -p test | grep Guest)
         if [[ ! -z "$guest" ]]; then
             echo "Anonymous SMB access is allowed on $target_ip" | tee -a "$log_dir//anonymous_smb_$target_ip.log"
-            netexec smb "$target_ip" -u test -p test --shares | tee -a "$log_dir//anonymous_smb_$target_ip.log"
+            #netexec smb "$target_ip" -u test -p test --shares | tee -a "$log_dir//anonymous_smb_$target_ip.log"
+            local command="netexec smb \"$target_ip\" -u test -p test --shares"
+            echo "$command" | tee -a "$trail_log"
+            eval "$command" | tee -a "$log_dir//anonymous_smb_$target_ip.log"
+
+
         else
             echo "Anonymous SMB access is NOT allowed on $target_ip" | tee -a "$log_dir//anonymous_smb_$target_ip.log"
 
@@ -82,8 +96,9 @@ run_smbclient() {
         command="-c \"$command\""
     fi
     local command_string="smbclient \"//$target_ip/$smb_share\" $smb_authentication $command"
-    echo $command_string
-    eval "$command_string" | tee -a "$log_dir//smbclient_$target_ip.log"
+    echo "$command_string" | tee -a $trail_log
+    eval "$command_string" | tee >(remove_color_to_log >> "$log_dir//smbclient_$target_ip.log")
+
 }
 
 

@@ -27,8 +27,11 @@ snmp_enumerate() {
             echo "No SNMP community found, using default 'public'"
             community="public"
         fi
-        $proxychain_command snmp-check -c $community $target_ip | tee >(remove_color_to_log >> $log_dir/snmp_enumeration_${target_ip}.log)
-        $proxychain_command snmpbulkwalk -v 2c -c $community $target_ip NET-SNMP-EXTEND-MIB::nsExtendObjects | tee >(remove_color_to_log >> $log_dir/snmp_enumeration_${target_ip}.log)
+        local snmp_command=$proxychain_command snmp-check -c $community $target_ip
+        echo $snmp_command
+        eval $snmp_command | tee >(remove_color_to_log >> $log_dir/snmp_enumeration_${target_ip}.log)
+        snmp_command=$proxychain_command snmpbulkwalk -v 2c -c $community $target_ip NET-SNMP-EXTEND-MIB::nsExtendObjects 
+        eval $snmp_command | tee >(remove_color_to_log >> $log_dir/snmp_enumeration_${target_ip}.log)
     else
         echo "SNMP service is not running on $target_ip"
         touch $log_dir/snmp_enumeration_${target_ip}.log

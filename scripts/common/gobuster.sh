@@ -58,8 +58,15 @@ run_gobuster() {
           echo "Using proxychains for Gobuster scan."
           proxy_options="--proxy socks5://$proxy_target:$proxy_port"
     fi
-    gobuster dir $proxy_options $target_option -w $gobuster_wordlist -x pdf,txt,php,html,docx,jsp,aspx,js,zip $options --no-color --no-progress --quiet -o "$gobuster_log"
-    gobuster dir $proxy_options $target_option -w $gobuster_wordlist -f $options --no-color --no-progress --quiet | tee >(remove_color_to_log "$gobuster_log")
+    if [[ -z $gobuster_extensions ]]; then
+        gobuster_extensions="pdf,txt,php,html,docx,jsp,aspx,js,zip"
+    fi
+    local gobuster_cmd="gobuster dir $proxy_options $target_option -w $gobuster_wordlist -x $gobuster_extensions $options --no-color --no-progress --quiet -o \"$gobuster_log\""
+    echo "$gobuster_cmd" | tee -a $trail_log
+    eval "$gobuster_cmd"
+    gobuster_cmd="gobuster dir $proxy_options $target_option -w $gobuster_wordlist -f $options --no-color --no-progress --quiet"
+    echo "$gobuster_cmd" | tee -a $trail_log
+    eval "$gobuster_cmd" | tee >(remove_color_to_log "$gobuster_log")
 
 }
 
@@ -124,8 +131,8 @@ run_feroxbuster() {
           echo "Using proxychains for Gobuster scan."
           proxy_options="--proxy socks5://$proxy_target:$proxy_port"
     fi   
-    cmd_string="feroxbuster -u $feroxbuster_target_url -w $feroxbuster_wordlist --quiet $feroxbuster_additional_options -o $feroxbuster_log $proxy_options"
-    echo "Feroxbuster command: $cmd_string"
+    local cmd_string="feroxbuster -u $feroxbuster_target_url -w $feroxbuster_wordlist --quiet $feroxbuster_additional_options -o $feroxbuster_log $proxy_options"
+    echo "Feroxbuster command: $cmd_string" | tee -a $trail_log
     eval "$cmd_string"
 }
 

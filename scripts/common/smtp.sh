@@ -14,7 +14,10 @@ smtp_enumeration() {
             smtp_username_list="/usr/share/seclists/Usernames/Names/names.txt"
             echo "SMTP username list is not set, using default: $smtp_username_list"
         fi
-        smtp-user-enum -M $smtp_mode -U $smtp_username_list -t $target_ip | tee -a "log/smtp_user_enum_$target_ip.log"
+        #smtp-user-enum -M $smtp_mode -U $smtp_username_list -t $target_ip | tee -a "log/smtp_user_enum_$target_ip.log"
+        local command="smtp-user-enum -M $smtp_mode -U $smtp_username_list -t $target_ip"
+        echo $command | tee -a $trail_log        
+        eval $command | tee -a "log/smtp_user_enum_$target_ip.log"
     else
         echo "SMTP user enumeration log for $target_ip already exists, skipping enumeration."
     fi

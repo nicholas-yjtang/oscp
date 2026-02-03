@@ -141,6 +141,18 @@ get_mysql_injection() {
     fi
 }
 
+get_nulls() {
+    local count=$1
+    local nulls=""
+    for ((i=0; i<count; i++)); do
+        if [[ $i -gt 0 ]]; then
+            nulls+=","
+        fi
+        nulls+="null"
+    done
+    echo "$nulls"
+}
+
 run_psql() {
 
     if [[ -z $username ]]; then
