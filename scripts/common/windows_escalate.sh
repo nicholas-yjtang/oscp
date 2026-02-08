@@ -360,9 +360,6 @@ netuser_add_admin_user_to_administrators() {
     if [[ -z "$admin_username" ]]; then
         admin_username="hacker"
     fi
-    if [[ -z "$admin_password" ]]; then
-        admin_password="hacker"
-    fi
     local cmd="net localgroup Administrators $admin_username /add"
     echo "$cmd"
 }

@@ -398,11 +398,11 @@ configure_chisel_for_forward() {
 
     compile_and_start_chisel_server
     chisel_client_reverse=false
+    configure_chisel_client    
     if ! is_chisel_forward_port_connected; then
         echo "Failed to configure chisel client"
         return 1
     fi
-
 }
 
 #reverse port forwarding, sharing <remote-host>:<remote-port>

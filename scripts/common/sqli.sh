@@ -171,8 +171,11 @@ run_psql() {
         password=postgres
         echo "Password is not set, using default $password"
     fi
+    local command=""
     if ! pgrep -f "psql -U $username -h $target_ip -p $target_port"; then
-        PGPASSWORD=$password psql -U $username -h $target_ip -p $target_port
+        command="PGPASSWORD=$password psql -U $username -h $target_ip -p $target_port"
+        echo $command
+        eval $command | tee >(remove_color_to_log >> "$log_dir/psql_$target_ip.log")
     else
         echo "psql session already running"
     fi

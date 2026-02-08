@@ -60,14 +60,16 @@ enumerate_wp_users() {
 }
 
 brute_force_wp_login() {
-    local target_host="$1"
-    if [[ -z "$target_host" ]]; then
+    if [[ ! -z $1 ]]; then
+        target_url=$1
+    fi
+    if [[ -z "$target_url" ]]; then
         echo "Usage: brute_force_wp_login <target_host>"
         return 1
     fi
     enumerate_wpscan="false"
     wpscan_additional_options="--passwords /usr/share/wordlists/rockyou.txt"
-    run_wpscan "$target_host"
+    run_wpscan
 }
 
 login_wp() {

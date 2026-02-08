@@ -164,5 +164,8 @@ run_gobuster_vhost() {
     if [[ ! -f $gobuster_pattern_file ]]; then
         echo "{GOBUSTER}" > "$gobuster_pattern_file"
     fi
-    gobuster vhost -u "http://$target:$port" -p "$gobuster_pattern_file" -w "/usr/share/seclists/Discovery/DNS/subdomains-top1million-110000.txt" --no-color --no-progress --quiet -o "$gobuster_log"
+    if [[ ! -f $gobuster_wordlist ]]; then
+        gobuster_wordlist="/usr/share/seclists/Discovery/DNS/subdomains-top1million-110000.txt"
+    fi
+    gobuster vhost -u "http://$target:$port" -p "$gobuster_pattern_file" $gobuster_additional_options -w $gobuster_wordlist --no-color --no-progress --quiet -o "$gobuster_log"
 }

@@ -44,7 +44,7 @@ generate_iwr() {
         outfile=$file
     fi
     if [ -z "$http_ip" ] || [ -z "$http_port" ]; then
-        echo "HTTP IP address and port must be set before running certutil."
+        echo "HTTP IP address and port must be set before running iwr."
         return 1
     fi
     if [[ ! -z $force_download ]] && [[ "$force_download" == "true" ]]; then
