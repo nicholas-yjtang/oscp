@@ -7,7 +7,10 @@ get_chisel() {
     if [[ -z "$chisel_file" ]]; then
         chisel_file="windows_amd64"        
     fi
-    local chisel_url="https://github.com/jpillora/chisel/releases/expanded_assets/v1.10.1"
+    if [[ -z $chisel_version ]]; then
+        chisel_version="1.10.1"
+    fi
+    local chisel_url="https://github.com/jpillora/chisel/releases/expanded_assets/v$chisel_version"
     local chisel_assets=$(curl -s $chisel_url | grep -oP 'href="\K[^"]+')    
     while read -r line ; do
         if [[ $line == *$chisel_file* && $line == *gz* ]] ; then            
