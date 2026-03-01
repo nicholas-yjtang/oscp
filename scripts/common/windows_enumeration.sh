@@ -95,3 +95,14 @@ get_psconsole_history() {
     echo 'Get-ChildItem -Path C:\Users -Recurse -Force -ErrorAction SilentlyContinue -Include "ConsoleHost_history.txt" | ForEach-Object { Get-Content $_.FullName }'
 
 }
+
+get_log_powershell_script() {
+    local $session_file="Session_$ip.txt"
+    if [[ -z $session_file_folder ]]; then
+        session_file_folder="C:\\Temp\\"
+    fi
+    echo "Start-Transcript -Path $session_file -Append"
+    echo "Stop-Transcript"
+    upload_file "$session_file" "$session_file_folder$session_file"
+
+}

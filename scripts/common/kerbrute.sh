@@ -118,3 +118,42 @@ generate_names() {
     done
 
 }
+
+run_nauth() {
+    local url="https://github.com/nicholas-yjtang/NauthNRPC/archive/refs/heads/main.zip"
+    if [[ ! -d nauth ]]; then
+        echo "Downloading NauthNRPC tool."
+        wget "$url" -O main.zip >> $trail_log
+        unzip main.zip >> $trail_log
+        mv NauthNRPC-main nauth
+        rm main.zip
+    fi
+    pushd nauth || return 1
+    if [[ ! -f "nauth.py" ]]; then
+        echo "nauth.py not found after extraction."
+        popd || return 1
+        return 1
+    fi
+    if [[ -z $target_ip ]]; then
+        echo "target_ip is not set for NauthNRPC"
+        popd || return 1
+        return 1
+    fi
+    popd || return 1
+    if [[ -z $username ]]; then
+        echo "username is not set for NauthNRPC"
+        username="/usr/share/seclists/Usernames/xato-net-10-million-usernames.txt"
+        echo "Using default username list: $username"
+    fi
+    local username_option=""
+    if [[ -f $username ]]; then
+        username_option="-u $username"
+    fi
+    local log_file="$log_dir/nauth_${target_ip}.log"
+    if [[ -f "$log_file" ]]; then
+        echo "NauthNRPC log already exists for $target_ip, skipping."
+        return 0
+    fi
+    python3 nauth/nauth.py -t $target_ip $username_option | tee >(remove_color_to_log >> "$log_file")
+
+}

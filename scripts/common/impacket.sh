@@ -105,7 +105,11 @@ run_impacket() {
 run_impacket_secretsdump () {
 
     if [[ -z "$hash_file" ]]; then
-        hash_file="hashes.secretsdump"
+        if [[ -z $target_ip ]]; then
+            hash_file="hashes.secretsdump"
+        else
+            hash_file="hashes.secretsdump.$target_ip"
+        fi
     fi
     if [[ -z "$target_username" ]]; then
         echo "Target username was not set. Assuming just-dc-user was not needed"

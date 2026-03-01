@@ -349,6 +349,17 @@ hashcat_mysql5() {
     hashcat_generic
 }
 
+hashcat_dcc2() {
+    if [[ -z "$hash_file" ]]; then
+        hash_file="hashes.dcc2"
+    else
+        echo "Using provided hash file: $hash_file"
+    fi    
+    hash_mode=2100  # DCC2 hash mode
+    enable_hashcat_rules="false" 
+    hashcat_generic
+}
+
 hashcat_generic() {
     if [[ -z "$hash_file" ]]; then
         hash_file="hashes"

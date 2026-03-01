@@ -583,7 +583,7 @@ is_listener_connected() {
     else
         target_ip=$1
     fi
-    if ss -tpn | grep "$host_port .*$target_ip"; then
+    if ss -tpn | grep ":$host_port .*$target_ip"; then
         echo "Listener is connected to $target_ip on port $host_port."
         return 0
     else

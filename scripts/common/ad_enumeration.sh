@@ -138,7 +138,7 @@ bloodhound_error() {
 bloodhound_login() {
     if [[ -z "$bloodhound_password" ]]; then
         bloodhound_password=$(cat "$SCRIPTDIR/../docker/bloodhound/bloodhound.config.json" | jq -r '.default_password')
-        bloodhound_password+='@'
+        bloodhound_password+='#'
     fi
     if [[ -z "$bloodhound_ip" ]]; then
         bloodhound_ip=$(docker ps --filter ancestor=specterops/bloodhound --format json | jq -r ".Ports" | grep -oP '^\K[^:]+')
@@ -267,8 +267,11 @@ upload_bloodhound_data() {
 run_bloodhound_python() {
     
     if [[ -z "$dc_host" ]]; then
-        echo "Domain controller host is not set."
+        echo "Domain controller host is not set. Make sure it is FQDN"
         return 1
+    elif [[ ! "$dc_host" =~ \. ]]; then
+        dc_host="$dc_host.$domain"
+        echo "Domain controller host is not FQDN, using $dc_host as DC host."
     fi
     if [[ -z "$dc_ip" ]]; then
         echo "Domain controller IP is not set."

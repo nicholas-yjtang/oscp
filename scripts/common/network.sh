@@ -4,7 +4,10 @@ source $SCRIPTDIR/urldecode.sh
 
 get_current_ip() {
     local current_ip=""
-    current_ip=$(ip a | grep tun0 -A3 | grep "inet "| awk '{print $2}' | cut -d '/' -f 1)
+    if [[ -z $target_network_device ]]; then
+        target_network_device="tun0"
+    fi
+    current_ip=$(ip a | grep "$target_network_device" -A3 | grep "inet "| awk '{print $2}' | cut -d '/' -f 1)
     echo "$current_ip"
 }
 

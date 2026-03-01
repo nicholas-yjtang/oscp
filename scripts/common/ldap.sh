@@ -1,7 +1,7 @@
 #!/bin/bash
 SCRIPTDIR=$(dirname "${BASH_SOURCE[0]}")
 
-run_ldapsearch_anonymous() {
+run_ldapsearch() {
     if [[ -z $target_ip ]]; then
         echo "target_ip is not set"
         return 1
@@ -9,13 +9,24 @@ run_ldapsearch_anonymous() {
     if [[ -z $base_dn ]]; then
         base_dn=$(get_base_dn_from_domain)
     fi
-    echo "Running ldapsearch anonymous on $target_ip with base DN $base_dn"
-    if [[ -f "log/ldapsearch_anonymous_$target_ip.log" ]]; then
-        echo "log/ldapsearch_anonymous_$target_ip.log already exists, skipping ldapsearch"
+    local ldap_authhentication=""
+    if [[ -z $ldap_bind_dn ]] && [[ -z $password ]]; then
+        echo "ldap_bind_dn and password are not set, running ldapsearch anonymous"
+    else
+        echo "ldap_bind_dn and password are set. Using simple authentication"
+        ldap_authhentication="-D \"$ldap_bind_dn,$base_dn\" -w \"$password\""
+        echo "$ldap_authhentication"
+    fi
+    echo "Running ldapsearch on $target_ip with base DN $base_dn"
+    if [[ -f "log/ldapsearch_$target_ip.log" ]]; then
+        echo "log/ldapsearch_$target_ip.log already exists, skipping ldapsearch"
         return 0
     fi
-    ldapsearch -x -H ldap://$target_ip -b "$base_dn" | tee >(remove_color_to_log >> "log/ldapsearch_anonymous_$target_ip.log")
+    local command="ldapsearch -x -H ldap://$target_ip -b \"$base_dn\" $ldap_authhentication"
+    echo $command
+    eval $command | tee >(remove_color_to_log >> "log/ldapsearch_$target_ip.log")
 }
+
 
 get_base_dn_from_domain() {
     if [[ -z $domain ]]; then
