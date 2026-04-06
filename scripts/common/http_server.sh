@@ -79,6 +79,18 @@ stop_php_server() {
     docker ps -f ancestor=php:8-apache --format "{{.ID}}" | xargs -r docker stop
 }
 
+
+prepare_http_server() {
+    if [[ -z "$http_port" ]]; then
+        echo "HTTP port is not set. Please set or start the http server"
+        exit 1
+    fi
+    if [[ -z "$http_ip" ]]; then
+        echo "HTTP IP is not set. Please set or start the http server"
+        exit 1
+    fi
+}
+
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     if [[ -z "$1" ]]; then
         echo "Usage: $0 <start|stop|start-webdav|stop-webdav>"

