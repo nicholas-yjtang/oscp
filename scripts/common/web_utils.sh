@@ -90,12 +90,8 @@ get_hidden_inputs() {
 }
 
 get_iis_hidden_inputs() {
-    if [[ -z "$target_url" ]]; then
-        target_url="$1"
-    fi
-    if [[ -z "$target_form" ]]; then
-        target_form="$2"
-    fi
+    local target_url="$1"
+    local target_form="$2"
     local hidden_inputs=$(get_hidden_inputs "$target_url" "$target_form")
     if [[ -z "$hidden_inputs" ]]; then
         echo ""
@@ -108,12 +104,8 @@ get_iis_hidden_inputs() {
 }
 
 get_post_hidden_inputs() {
-    if [[ -z "$target_url" ]]; then
-        target_url="$1"
-    fi
-    if [[ -z "$target_form" ]]; then
-        target_form="$2"
-    fi
+    local target_url="$1"
+    local target_form="$2"
     local hidden_inputs=$(get_hidden_inputs "$target_url" "$target_form")
     if [[ -z "$hidden_inputs" ]]; then
         echo ""
