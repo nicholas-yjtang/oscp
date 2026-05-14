@@ -252,50 +252,97 @@ create_password_list() {
 
     if [[ ! -f "$password_input_file" ]]; then
         echo "Password input file $password_input_file not found."
-        echo "Creating password input file using defaults"
-        echo "January" > "$password_input_file"
-        echo "February" >> "$password_input_file"
-        echo "March" >> "$password_input_file"
-        echo "April" >> "$password_input_file"
-        echo "May" >> "$password_input_file"
-        echo "June" >> "$password_input_file"
-        echo "July" >> "$password_input_file"
-        echo "August" >> "$password_input_file"
-        echo "September" >> "$password_input_file"
-        echo "October" >> "$password_input_file"
-        echo "November" >> "$password_input_file"
-        echo "December" >> "$password_input_file"
-        echo "Spring" >> "$password_input_file"
-        echo "Summer" >> "$password_input_file"
-        echo "Fall" >> "$password_input_file"
-        echo "Autumn" >> "$password_input_file"
-        echo "Winter" >> "$password_input_file"        
+        if [[ -z $target_ip ]]; then
+            target_ip=$ip
+            echo "No target IP provided, using default IP: $target_ip"
+        fi
+        cewl $target_ip | grep -v CeWL > "$password_input_file"
+    fi
+
+    if [[ -z $password_rules_reverse ]]; then
+        password_rules_reverse="password_rules_reverse.txt"
+    fi
+    if [[ ! -f "$password_rules_reverse" ]]; then
+        echo "Creating reverse password rules file $password_rules_reverse"
+        echo ':' > "$password_rules_reverse"
+        echo 'r' >> "$password_rules_reverse"
+    fi
+    if [[ -z "$password_rules_basic" ]]; then
+        password_rules_basic="password_rules_basic.txt"
+    fi
+    if [[ ! -f "$password_rules_basic" ]]; then
+        echo "Creating basic password rules file $password_rules_basic"
+        echo ':' > "$password_rules_basic"
+        basic_functions=('l' 'u' 'c' 'C' )
+        for function in "${basic_functions[@]}"; do
+            echo "$function" >> "$password_rules_basic"
+        done
+    fi
+
+    if [[ -z $password_rules_underscore ]]; then
+        password_rules_underscore="password_rules_underscore.txt"
+    fi
+    if [[ ! -f "$password_rules_underscore" ]]; then
+        echo "Creating underscore password rules file $password_rules_underscore"
+        echo ':' > "$password_rules_underscore"
+        echo "\$_" >> "$password_rules_underscore"
+    fi
+
+    if [[ -z "$password_rules_year" ]]; then
+        password_rules_year="password_rules_year.txt"
+    fi
+    if [[ ! -f "$password_rules_year" ]]; then
+        echo "Creating default password rules file $password_rules_year"
+        echo ':' > "$password_rules_year"
+        current_year=$(date +%Y)
+        for function in "${basic_functions[@]}"; do
+            for i in $(seq 1990 "$current_year"); do
+                year_variable=""
+                for ((j=0; j<${#i}; j++)); do
+                    year_variable+="\$${i:$j:1}"
+                done
+                echo "$function $year_variable" >> "$password_rules_year"
+            done            
+        done
+    fi
+
+    local password_rules_specialcharacters_options=""
+    if [[ -z $password_rules_specialcharacters ]]; then
+        password_rules_specialcharacters="password_rules_specialcharacters.txt"
+    fi
+    if [[ ! -f "$password_rules_specialcharacters" ]]; then
+        echo "Creating special characters password rules file $password_rules_specialcharacters"
+        echo ':' > "$password_rules_specialcharacters"
+        special_characters=('!' '@' '#' '$' '%' '&' '*' '?' )
+        for character in "${special_characters[@]}"; do
+            echo "\$${character}" >> "$password_rules_specialcharacters"
+        done
+    fi
+    #default we don't use the special characters rules, but we can toggle them on if needed
+    if [[ ! -z $use_special_characters_rules ]] && [[ $use_special_characters_rules == "true" ]]; then
+        password_rules_specialcharacters_options="-r $password_rules_specialcharacters"
+    fi
+    #currently not toggling
+    local password_rules_toggle_options=""
+    if [[ -z "$password_rules_toggle" ]]; then
+        password_rules_toggle="password_rules_toggle.txt"
+    fi
+    if [[ ! -f "$password_rules_toggle" ]]; then
+        echo "Creating default password toggle rules file $password_rules_toggle"
+        echo ":" > "$password_rules_toggle"
+        echo 'T0' >> "$password_rules_toggle"
+    fi
+    #default we don't use the toggle rules, but we can toggle them on if needed
+    if [[ ! -z "$use_toggle_rules" ]] && [[ "$use_toggle_rules" == "true" ]]; then
+        password_rules_toggle_options="-r $password_rules_toggle"
+        echo "Using toggle rules from $password_rules_toggle"
     fi
 
     if [[ -z "$password_file" ]]; then
         password_file="passwords.txt"
         echo "No password file provided, using default $password_file"
     fi
-
-    if [[ -z "$password_rules" ]]; then
-        password_rules="password_rules.txt"
-    fi
-    if [[ ! -f "$password_rules" ]]; then
-        echo "Creating default password rules file $password_rules"
-        echo ':' > "$password_rules"
-        echo '$2$0$2$0' >> "$password_rules"
-        echo '$2$0$2$1' >> "$password_rules"
-        echo '$2$0$2$2' >> "$password_rules"
-        echo '$2$0$2$3' >> "$password_rules"
-        echo '$2$0$2$4' >> "$password_rules"
-        echo '$2$0$2$5' >> "$password_rules"
-    fi
-    if [[ ! -f "password_rules_toggle.txt" ]]; then
-        echo "Creating default password toggle rules file password_rules_toggle.txt"
-        echo 'T0' > "password_rules_toggle.txt"
-
-    fi
-    hashcat --stdout "$password_input_file" -r "$password_rules"  -r "password_rules_toggle.txt" | sort -u > "$password_file"
+    hashcat --stdout "$password_input_file" -r "$password_rules_reverse" -r "$password_rules_basic" -r "$password_rules_underscore" -r "$password_rules_year"  $password_rules_specialcharacters_options $password_rules_toggle_options | sort -u > "$password_file"
 }
 
 get_ntlm_hashes_from_ntds() {

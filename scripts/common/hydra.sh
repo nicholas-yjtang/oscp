@@ -74,14 +74,42 @@ run_hydra_ssh() {
     run_hydra_generic "ssh"
 }
 
+set_default_hydra_post_params() {
+    if [[ -z $target_path ]]; then
+        target_path="/login"
+        echo "Target path not provided, using default path: $target_path"
+    fi
+    if [[ -z $hydra_username_field ]]; then
+        hydra_username_field="username"
+        echo "Hydra username field not provided, using default field: $hydra_username_field"
+    fi
+    if [[ -z $hydra_password_field ]]; then
+        hydra_password_field="password"
+        echo "Hydra password field not provided, using default field: $hydra_password_field"
+    fi
+    if [[ -z $hydra_error_string ]]; then
+        hydra_error_string="Invalid username or password"
+        echo "Hydra error string not provided, using default error string: $hydra_error_string"
+    fi
+    if [[ -z $target_service_params ]]; then
+        target_service_params="$hydra_username_field=^USER^&$hydra_password_field=^PASS^:$hydra_error_string"
+    fi
+}
+
 run_hydra_http_post_form() {
     if [[ -z $target_port ]]; then
         target_port=80
         echo "Target port not provided, using default port: $target_port"
     fi
-    if [[ -z $target_path ]]; then
-        target_path="/login"
-        echo "Target path not provided, using default path: $target_path"
-    fi
+    set_default_hydra_post_params
     run_hydra_generic "http-post-form"
+}
+
+run_hydra_https_post_form() {
+    if [[ -z $target_port ]]; then
+        target_port=443
+        echo "Target port not provided, using default port: $target_port"
+    fi
+    set_default_hydra_post_params
+    run_hydra_generic "https-post-form"
 }

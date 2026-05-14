@@ -122,6 +122,9 @@ hashcat_sha512() {
         echo "Using provided hash file: $hash_file"
     fi
     hash_mode=1800  # SHA-512 hash mode
+    if [[ -z "$hashcat_rule" ]]; then
+        enable_hashcat_rules="false"
+    fi  
     hashcat_generic
 }
 
