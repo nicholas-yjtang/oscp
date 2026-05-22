@@ -25,11 +25,13 @@ run_ftp() {
             echo "FTP session is already active"
             return 0
         else
+            echo "ftp $target_url"
             ftp $target_url | tee >(remove_color_to_log >> "$log_dir/ftp_$target_ip.log")
         fi
     else
         echo "Running FTP commands on $target_ip:$target_port" 
         echo -e "$ftp_commands" > ftp_commands.txt
+        echo "ftp $target_url < ftp_commands.txt"
         ftp $target_url < ftp_commands.txt | tee >(remove_color_to_log >> "$log_dir/ftp_$target_ip.log")
     fi   
 
