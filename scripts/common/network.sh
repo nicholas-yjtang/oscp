@@ -122,3 +122,9 @@ is_port_connected() {
         return 1
     fi
 }
+
+configure_proxy() {
+    if [[ ! -z $use_burpsuite ]] && [[ $use_burpsuite == "true" ]]; then
+        proxy_option="--proxy localhost:8080"
+    fi    
+}
