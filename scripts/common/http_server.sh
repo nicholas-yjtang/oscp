@@ -52,6 +52,7 @@ EOF
     docker run -d -p "$http_port":"$http_port" -v "$(pwd)/config.yml:/config.yml:ro" -v "$(pwd):/data" hacdias/webdav:latest -c /config.yml
     docker_id=$(docker ps | grep hacdias/webdav | awk '{print $1}')
     docker logs -f "$docker_id" 2>&1 | tee >(remove_color_to_log >> $log_dir/webdav.log) &
+
 }
 
 stop_webdav_server(){
@@ -60,8 +61,7 @@ stop_webdav_server(){
     if [ ! -z "$container_id" ]; then
         echo "Stopping WebDAV server with container ID: $container_id"  
         docker stop "$container_id"
-    fi
-
+    fi  
 }
 
 start_php_server() {
@@ -72,11 +72,26 @@ start_php_server() {
     if [ -z "$http_ip" ]; then
         http_ip=$(get_host_ip)
     fi      
-    docker run -d -p "$http_port":"$http_port" -v "$(pwd):/var/www/html" php:8-apache
+    if [[ ! -f error-logging.ini ]]; then
+cat << EOF > error-logging.ini
+log_errors = On
+error_log = /dev/stderr
+error_reporting = E_ALL
+EOF
+    fi
+    if [[ ! -d php_tmp ]]; then
+        mkdir php_tmp
+        sudo chown -R www-data:www-data php_tmp
+    fi
+    docker run -d -p "$http_port":"$http_port" -v "$(pwd)/php_tmp:/opt/tmp" -v "$(pwd):/var/www/html" -v "$(pwd)/error_logging.ini:/usr/local/etc/php/conf.d/error-logging.ini" php:8-apache
 }
 
 stop_php_server() {
-    docker ps -f ancestor=php:8-apache --format "{{.ID}}" | xargs -r docker stop
+    docker_id=$(docker ps -f ancestor=php:8-apache --format "{{.ID}}") 
+    if [ ! -z "$docker_id" ]; then
+        echo "Stopping PHP server with container ID: $docker_id"
+        docker stop "$docker_id"
+    fi    
 }
 
 

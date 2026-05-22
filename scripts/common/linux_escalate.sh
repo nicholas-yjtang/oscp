@@ -50,7 +50,7 @@ create_passwd_user() {
         echo "password is not set, using default: $password"
     fi
     echo "password_hash=\$(openssl passwd $password)"
-    echo "cat \$password_hash"
+    echo "echo \"\$password_hash\""
     echo "echo \"$username:\$password_hash:0:0:root:/root:/bin/bash\" >> /etc/passwd"
 
 }

