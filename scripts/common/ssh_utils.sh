@@ -58,7 +58,7 @@ run_ssh() {
         eval "$ssh_command" | tee >(remove_color_to_log >> "$log_dir/ssh_trail_$ssh_target.log")
     else
         echo "$ssh_command \"$command\""
-        eval "$ssh_command \"$command\"" | tee >(remove_color_to_log >> "$log_dir/ssh_trail_$ssh_target.log")
+        eval "$ssh_command" '$command' | tee >(remove_color_to_log >> "$log_dir/ssh_trail_$ssh_target.log")
     fi
 }
 
@@ -77,11 +77,16 @@ run_ssh_identity() {
     fi
     if [[ -z "$trail_log" ]]; then
         trail_log="trail.log"
-    fi    
-    if pgrep -f "ssh .*-i $identity.*$username@$ssh_target" > /dev/null; then
-        echo "SSH session is already active"
-        return 0
     fi
+
+    local command="$1"
+    if [[ -z "$command" ]]; then
+        if pgrep -f "ssh .*$username@$ssh_target" > /dev/null; then
+            echo "SSH session is already active"
+            return 0
+        fi
+    fi
+
     # instead of using proxy chains, we will use ProxyCommand
     if [[ ! -z "$use_proxychain" ]] && [[ "$use_proxychain" == "true" ]]; then
         if [[ -z "$proxy_target" ]] || [[ -z "$proxy_port" ]]; then
@@ -90,7 +95,6 @@ run_ssh_identity() {
         fi
         ssh_options="-o ProxyCommand=\"ncat --proxy-type socks5 --proxy $proxy_target:$proxy_port  %h %p\" $ssh_options"
     fi
-    local command="$1"
     local ssh_command="ssh -v -i $identity $ssh_options -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no $username@$ssh_target -p $ssh_port"
     echo "$ssh_command"
     if [[ -z "$command" ]]; then
@@ -98,7 +102,7 @@ run_ssh_identity() {
         eval "$ssh_command" | tee >(remove_color_to_log >> "$log_dir/ssh_trail_$ssh_target.log")
     else
         echo "$ssh_command \"$command\""
-        eval "$ssh_command \"$command\"" | tee >(remove_color_to_log >> "$log_dir/ssh_trail_$ssh_target.log")
+        eval "$ssh_command" '$command' | tee >(remove_color_to_log >> "$log_dir/ssh_trail_$ssh_target.log")
     fi
 
 }

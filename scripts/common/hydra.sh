@@ -23,7 +23,7 @@ run_hydra_generic() {
         password=passwords.txt
         echo "Password not provided, using default password list: $password"
     fi    
-    local hydra_log="hydra_${service}_${target_ip}_${target_port}"
+    local hydra_log="hydra_${service}_${target_ip}_${target_port}_${username}_${password}"
     if [[ ! -z $target_path ]]; then
         hydra_log+="${target_path}"
     fi
@@ -31,7 +31,7 @@ run_hydra_generic() {
     hydra_log+=".log"
     hydra_log="$log_dir/$hydra_log"
     if [[ -f $hydra_log ]]; then
-        echo "Hydra log for $target_ip:$target_port already exists, skipping hydra"
+        echo "Hydra log for $target_ip:$target_port with username $username and password $password already exists, skipping hydra"
         return 0
     fi
     local hydra_user_option=""
@@ -72,6 +72,14 @@ run_hydra_ssh() {
         echo "Target port not provided, using default port: $target_port"
     fi
     run_hydra_generic "ssh"
+}
+
+run_hydra_ftp() {
+    if [[ -z $target_port ]]; then
+        target_port=21
+        echo "Target port not provided, using default port: $target_port"
+    fi
+    run_hydra_generic "ftp"
 }
 
 set_default_hydra_post_params() {

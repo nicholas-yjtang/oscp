@@ -9,7 +9,7 @@ remove_color_to_log() {
 escape_sed() {
     local input="$1"
     # Escape special characters for sed
-    echo "$input" | sed -E 's/([\/&])/\\\1/g'
+    echo "$input" | sed -E 's/([\/&])/\\\1/g' | sed -E 's/\*/\\*/g'
 }
 
 generate_windows_download() {

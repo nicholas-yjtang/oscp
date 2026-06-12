@@ -411,6 +411,10 @@ hashcat_generic() {
         echo "Hash file $hash_file not found or empty"
         return 1
     fi
+    if [[ -f "$hash_file.done" ]]; then
+        echo "Hash file $hash_file has already been cracked, skipping hashcat."
+        return 0
+    fi
     if [[ -z "$hashcat_addition_options" ]]; then
         echo "No additional hashcat options set."
     fi
@@ -459,5 +463,5 @@ hashcat_generic() {
     else
         run_local_hashcat "$hashcat_cmd" "$hashcat_show_cmd"
     fi
-
+    touch "$hash_file.done"
 }
