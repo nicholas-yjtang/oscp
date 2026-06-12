@@ -1,6 +1,7 @@
 #!/bin/bash
 SCRIPTDIR=$(dirname "${BASH_SOURCE[0]}")
 source "$SCRIPTDIR/general.sh"
+source "$SCRIPTDIR/.env"
 
 download_powerview() {
     if [[ -f "powerview.ps1" ]]; then
@@ -61,7 +62,7 @@ download_bloodhound_collector() {
 }
 
 download_sharphound() {
-    local sharphound_version=v2.6.7
+    local sharphound_version=v2.12.0
     local sharphound_url="https://github.com/SpecterOps/SharpHound/releases/expanded_assets/$sharphound_version"
     echo "Downloading SharpHound from: $sharphound_download_url" >> $trail_log
     if [[ ! -f "/tmp/sharphound_$sharphound_version.zip" ]]; then    
@@ -103,6 +104,14 @@ stop_neo4j() {
     sudo kill "$neo4j_pid" | sudo tee -a "$trail_log"
 }
 
+get_bloodhound_version() {
+    bloodhound_version=$(cat "$SCRIPTDIR/../docker/bloodhound/.env" | grep "BLOODHOUND_TAG" | cut -d '=' -f 2)  
+    if [[ -z "$bloodhound_version" ]]; then
+        echo "BloodHound version not found in .env file."
+        return 1
+    fi
+}
+
 start_bloodhound() { 
     pushd "$SCRIPTDIR/../docker/bloodhound" || exit
     if [[ ! -f "docker-compose.yml" ]]; then
@@ -136,27 +145,37 @@ bloodhound_error() {
 }
 
 bloodhound_login() {
+    get_bloodhound_version
     if [[ -z "$bloodhound_password" ]]; then
         bloodhound_password=$(cat "$SCRIPTDIR/../docker/bloodhound/bloodhound.config.json" | jq -r '.default_password')
-        bloodhound_password+='#'
+        if [[ -z $BLOODHOUND_PASSWORD_POSTFIX ]]; then
+            echo "BLOODHOUND_PASSWORD_POSTFIX is not set"
+        else
+            echo "Using $BLOODHOUND_PASSWORD_POSTFIX as postfix for BloodHound password."
+            bloodhound_password+="$BLOODHOUND_PASSWORD_POSTFIX"
+        fi
     fi
     if [[ -z "$bloodhound_ip" ]]; then
-        bloodhound_ip=$(docker ps --filter ancestor=specterops/bloodhound --format json | jq -r ".Ports" | grep -oP '^\K[^:]+')
+        bloodhound_ip=$(docker ps --filter ancestor=specterops/bloodhound:$bloodhound_version --format json | jq -r ".Ports" | grep -oP '^\K[^:]+')
+        echo "BloodHound IP not set, using $bloodhound_ip as BloodHound IP."
     fi
     if [[ -z "$bloodhound_port" ]]; then
-        bloodhound_port=$(docker ps --filter ancestor=specterops/bloodhound --format json | jq -r ".Ports" | grep -oP ':\K[^-]+')
+        bloodhound_port=$(docker ps --filter ancestor=specterops/bloodhound:$bloodhound_version --format json | jq -r ".Ports" | grep -oP ':\K[^-]+')
+        echo "BloodHound port not set, using $bloodhound_port as BloodHound port."
     fi
     local login_return=""
     login_return=$(curl -s -d '{"login_method": "secret", "username":"admin", "secret":"'"$bloodhound_password"'"}' \
-        -H "Content-Type: application/json" \
+        -H "Content-Type: application/json" $proxy_option \
         http://$bloodhound_ip:$bloodhound_port/api/v2/login)
     if [[ ! -z "$login_return" ]]; then
         if ! bloodhound_error "$login_return"; then
             return 1
         fi
         bloodhound_authorization="Authorization: Bearer "$(echo "$login_return" | jq -r '.data.session_token')
+        echo "BloodHound login successful."
+        return 0
     else
-        echo "BloodHound login failed." >> "$trail_log"
+        echo "BloodHound login failed. $login_return" >> "$trail_log"
         return 1
     fi
 
