@@ -123,59 +123,81 @@ create_run_windows_shell_dll() {
 }
 
 build_dotnet() {
-    echo "Building dotnet project"    
-    if [[ -z "$project_file" ]]; then
-        echo "Project file is required"
+    echo "Building dotnet project"   
+    local dotnet_project_name="$1"
+    if [[ -z "$dotnet_project_name" ]]; then
+        echo "Project name is required"
+        return 1
+    fi  
+    local dotnet_project_dir="$dotnet_project_name"
+    #force all compilations to minimally have a project dir
+    if [[ ! -d "$dotnet_project_dir" ]]; then
+        echo "Project directory $dotnet_project_dir does not exist"
         return 1
     fi
-    if [[ ! -f "$project_file" ]] && [[ ! -d "$project_file" ]]; then
-        echo "Project file $project_file does not exist"
-        return 1
+
+    if [[ -z $target_build_dir ]]; then
+        target_build_dir="build"
+    fi
+    if [[ ! -d $dotnet_project_dir/$target_build_dir ]]; then
+        mkdir -p $dotnet_project_dir/$target_build_dir
+    fi
+    if [[ -z $target_zip_file ]]; then
+        target_zip_file="build.zip"
     fi
     local build_command=""
-    local target_project_file="$project_file"
-    local target_build_dir="build"
-    local zip_command="tar -a -c -f build.zip $target_build_dir"
-    local target_zip_file="build.zip"
-    if [[ -d "$project_file" ]]; then
-        if [[ -f "$project_file.zip" ]]; then
-            rm "$project_file.zip"
-        fi
-        zip -r "$project_file.zip" "$project_file"
-        build_command+="tar -xf $project_file.zip && cd $project_file && "
-        target_project_file="$project_file.zip"
-        zip_command="cd $project_file && $zip_command"
-        target_zip_file="$project_file/$target_zip_file"
-        project_file="$project_file.csproj"
+    local zip_command="tar -a -c -f $target_zip_file $target_build_dir"
+
+    if [[ -f "$target_zip_file.zip" ]]; then
+        rm "$target_zip_file.zip"
     fi
+    local project_zip_file="$dotnet_project_name.zip"
+    zip -r "$project_zip_file" "$dotnet_project_dir"
+    build_command+="tar -xf $project_zip_file && cd $dotnet_project_name && "
+    zip_command="cd $dotnet_project_name && $zip_command"
+    target_zip_file="$dotnet_project_name/$target_zip_file"
+    
     local publish_option=""
     if [[ ! -z "$single_executable" ]] && [[ "$single_executable" == "true" ]]; then
         echo "Building single executable"
         publish_option="-p:PublishSingleFile=true"
     fi
-    
-    output_file=$(basename "$project_file" | sed -E 's/\.[^.]+$//')
+    local dotnet_project_file=""    
     if [[ ! -z $dotnet_command ]] && [[ $dotnet_command == "publish" ]] ; then
-        build_command+="dotnet publish $project_file -c Release -r win-x64 --self-contained false $publish_option -o build $dotnet_additional_options"
-        output_file="$output_file.exe"
+        dotnet_project_file=$dotnet_project_name.csproj
+        if [[ ! -f "$dotnet_project_dir/$dotnet_project_file" ]]; then
+            echo "Project file $dotnet_project_file does not exist in the project directory"
+            return 1
+        fi
+        build_command+="dotnet publish $dotnet_project_file -c Release -r win-x64 --self-contained false $publish_option -o build $dotnet_additional_options"
+        output_file="$dotnet_project_name.exe"
     elif [[ ! -z $dotnet_command ]] && [[ $dotnet_command == "csc" ]] ; then
-        build_command+="cd build && C:\\Windows\\Microsoft.NET\\Framework\\v4.0.30319\\csc.exe ..\\$project_file $dotnet_additional_options"
-        output_file="$output_file.exe"
+        dotnet_project_file=$dotnet_project_name.cs
+        if [[ ! -f "$dotnet_project_dir/$dotnet_project_file" ]]; then
+            echo "Project file $dotnet_project_file does not exist in the project directory"
+            return 1
+        fi
+        build_command+="C:\\Windows\\Microsoft.NET\\Framework\\v4.0.30319\\csc.exe $dotnet_project_file $dotnet_additional_options"
+        build_command+=" && move $dotnet_project_name.exe build\\$dotnet_project_name.exe"
+        output_file="$dotnet_project_name.exe"
     else
         echo "Defaulting to dotnet build"
-        build_command+="dotnet build $project_file -c Release -o build $dotnet_additional_options"
-        if [[ $project_file == *".csproj" ]]; then
-            csproj=$(cat $output_file/$project_file)
+        dotnet_project_file=$dotnet_project_name.csproj
+        if [[ ! -f "$dotnet_project_dir/$dotnet_project_file" ]]; then
+            echo "Project file $dotnet_project_file does not exist in the project directory"
+            return 1
         fi
+        build_command+="dotnet build $dotnet_project_file -c Release -o build $dotnet_additional_options"
+        csproj=$(cat $dotnet_project_dir/$dotnet_project_file)
         if [[ $csproj == *"Exe"* ]]; then
-            output_file="$output_file.exe"
+            output_file="$dotnet_project_name.exe"
         else
-            output_file="$output_file.dll"
+            output_file="$dotnet_project_name.dll"
         fi
-        echo "Output file: $output_file"
     fi   
+    echo "Output file: $output_file"
     echo "Build command: $build_command"
-    scp "$target_project_file" "$windows_username@$windows_computername:~/$target_project_file"
+    scp "$project_zip_file" "$windows_username@$windows_computername:~/$project_zip_file"
     ssh $windows_username@$windows_computername "$build_command"
     ssh $windows_username@$windows_computername "$zip_command"
     scp "$windows_username@$windows_computername:~/$target_zip_file" .

